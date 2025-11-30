@@ -4,8 +4,12 @@ function setup() {
     background(255);
 }
 
+
+/* example exercise from intro
 function draw() {
     fill(0, 25);
     stroke(0, 50);
-    circle(random(width), random(height), 16);
+    circle(random(width), random(height), random(20, 100));
+
 }
+*/
