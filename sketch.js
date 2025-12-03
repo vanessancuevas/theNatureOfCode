@@ -34,8 +34,8 @@ class Walker {
     }
 
     step () {
-        let xstep = floor(random(3)) - 1;
-        let ystep = floor(random(3)) - 1;
+        let xstep = random(-1, 1);
+        let ystep = random(-1, 1);
 
         this.x += xstep;
         this.y += ystep;
