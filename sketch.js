@@ -1,4 +1,5 @@
 /// <reference types="p5" />
+let walker;
 
 function setup() {
     createCanvas(500, 500);
@@ -20,7 +21,6 @@ function draw() {
 // }
 
 /* Chapter 0 - Random walk */
-let walker;
 
 class Walker {
     constructor() {
