@@ -73,13 +73,17 @@ function setup() {
     textLayer.textStyle(BOLD); // ADDED: Make text bold
     textLayer.textSize(fontsize);
 
-    // Random starting position for the sentence
-    let startX = random(50, 200);
-    let startY = random(100, 300);
+    // Measure text width to keep it fully within canvas
+    let txt = 'can you find me?';
+    let txtWidth = textLayer.textWidth(txt);
+
+   // Random position that keeps text fully visible
+    let startX = random(10, 500 - txtWidth - 10);  // Account for text width
+    let startY = random(50, 470);  // Account for text height
     
    // Draw white text as an ordered sentence
     textLayer.fill(255, 255, 255);
-    textLayer.text('can you find me?', startX, startY);
+    textLayer.text(txt, startX, startY);
 }
 
 
