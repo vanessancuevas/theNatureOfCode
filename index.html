@@ -2,8 +2,72 @@
 <html>
 <head>
     <script src="https://cdn.jsdelivr.net/npm/p5@1.7.0/lib/p5.js"> </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Nature of Code — Vanessa Cuevas</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+
 </head>
 <body>
-    <script src="sketch.js"></script>
+    <div class="container">
+        <header>
+            <h1>The Nature of Code</h1>
+            <p class="subtitle">Creative coding exercises exploring <span class="accent">randomness, motion & natural systems</span></p>
+        </header>
+
+        <div class="projects-grid">
+            <div class="project-card">
+                <div class="project-number">Chapter 0: Randomness</div>
+                <h2 class="project-title">Random Walk</h2>
+                <p class="project-description">
+                    A simple random walker that moves unpredictably across the canvas, demonstrating the basic principles of stochastic motion.
+                </p>
+                <div class="project-tags">
+                    <span class="tag">Randomness</span>
+                    <span class="tag">Introduction</span>
+                </div>
+                <a href="/randomWalk/randomWalk.html" class="btn-primary">View Project</a>
+            </div>
+
+            <div class="project-card">
+                <div class="project-number">Chapter 0: Randomness</div>
+                <h2 class="project-title">Gaussian Blur Reveal</h2>
+                <p class="project-description">
+                    Rainbow-colored Gaussian blur particles follow your cursor to reveal hidden text. Text repositions every 15 seconds for continuous discovery.
+                </p>
+                <div class="project-tags">
+                    <span class="tag">Gaussian Distribution</span>
+                    <span class="tag">Interaction</span>
+                    <span class="tag">Color Cycling</span>
+                </div>
+                <a href="/gaussian/gaussian.html" class="btn-primary">View Project</a>
+            </div>
+
+            <!-- Template for future projects -->
+            <!--
+            <div class="project-card">
+                <div class="project-number">Chapter X: Topic</div>
+                <h2 class="project-title">Project Name</h2>
+                <p class="project-description">
+                    Description of your project goes here...
+                </p>
+                <div class="project-tags">
+                    <span class="tag">Tag1</span>
+                    <span class="tag">Tag2</span>
+                </div>
+                <a href="project-url.html" class="btn-primary">View Project</a>
+            </div>
+            -->
+        </div>
+
+        <footer>
+            <p>Built by <a href="https://github.com/vanessancuevas" target="_blank">Vanessa Cuevas</a> while learning from <em>The Nature of Code</em></p>
+        </footer>
+    </div>
+
+    
 </body>
 </html>
