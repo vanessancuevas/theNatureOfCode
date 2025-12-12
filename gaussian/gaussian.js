@@ -53,7 +53,7 @@ function preload() {
 }
 
 function setup() {
-    createCanvas(500, 500);
+    createCanvas(windowWidth, windowHeight);
     background(255); // White background set once
     colorMode(HSB, 360, 100, 100, 100); // Set color mode to HSB
 
@@ -65,9 +65,16 @@ function setup() {
     lastTextMove = millis(); // Initialize timer
  }
 
+ // Added this function to make it responsive when window resizes
+function windowResized() {
+    resizeCanvas(windowWidth, windowHeight);
+    background(255);
+    createTextLayer();
+}
+
  function createTextLayer() {
     // ADDED: Create graphics buffer to store white text
-    textLayer = createGraphics(500, 500);
+    textLayer = createGraphics(width, height);
     textLayer.clear(); // Transparent background
     textLayer.textFont('Arial'); // CHANGE: Using Arial instead of custom font
     textLayer.textStyle(BOLD); // ADDED: Make text bold
