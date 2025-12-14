@@ -98,7 +98,7 @@ function draw() {
     // Check if 15 seconds have passed
     if (millis() - lastTextMove > 15000) {
         background(255); // Clear everything
-        createTextLayer(); // Recreate text at new position
+        createTextLayer(width, height); // Recreate text at new position
         lastTextMove = millis(); // Reset timer
     }
     // Gaussian spread only on x-axis
