@@ -1,11 +1,8 @@
-const logo = document.getElementById('logo');
-const container = document.getElementById('container');
-
-// Initial position and velocity (slowed down)
-let x = Math.random() * (window.innerWidth - 200);
-let y = Math.random() * (window.innerHeight - 100);
-let dx = 1 + Math.random() * 0.5; // Speed between 1-1.5 pixels (slowed down)
-let dy = 1 + Math.random() * 0.5;
+let position;
+let velocity;
+let currentColor;
+let logoWidth = 200;
+let logoHeight;
 
 // Color array for changing colors on bounce
 const colors = [
@@ -23,73 +20,152 @@ const colors = [
     '#B4A7D6'  // Purple
 ];
 
-let currentColor = colors[0];
-let hueRotation = 120; // Start with a green/cyan color
-
-function getRandomColor() {
-    return colors[Math.floor(Math.random() * colors.length)];
+function setup() {
+    createCanvas(windowWidth, windowHeight);
+    
+    // Calculate logo height based on SVG viewBox aspect ratio
+    logoHeight = logoWidth * (1466.33757 / 3794.02395);
+    
+    // Create vectors for position and velocity
+    position = createVector(
+        random(width - logoWidth),
+        random(height - logoHeight)
+    );
+    
+    velocity = createVector(
+        1 + random(0.5),
+        1 + random(0.5)
+    );
+    
+    currentColor = random(colors);
 }
 
-function getRandomHue() {
-    return Math.floor(Math.random() * 360);
-}
-
-function animate() {
-    // Get container dimensions
-    const containerWidth = container.clientWidth;
-    const containerHeight = container.clientHeight;
-    const logoWidth = logo.clientWidth;
-    const logoHeight = logo.clientHeight;
-
-    // Update position
-    x += dx;
-    y += dy;
-
+function draw() {
+    background(0);
+    
+    // Add velocity to position
+    position.add(velocity);
+    
     // Check for collision with walls
-    if (x + logoWidth >= containerWidth) {
-        x = containerWidth - logoWidth;
-        dx = -dx;
-        hueRotation = getRandomHue();
-    } else if (x <= 0) {
-        x = 0;
-        dx = -dx;
-        hueRotation = getRandomHue();
+    if (position.x > width - logoWidth || position.x < 0) {
+        velocity.x = velocity.x * -1;
+        currentColor = random(colors);
     }
-
-    if (y + logoHeight >= containerHeight) {
-        y = containerHeight - logoHeight;
-        dy = -dy;
-        hueRotation = getRandomHue();
-    } else if (y <= 0) {
-        y = 0;
-        dy = -dy;
-        hueRotation = getRandomHue();
+    
+    if (position.y > height - logoHeight || position.y < 0) {
+        velocity.y = velocity.y * -1;
+        currentColor = random(colors);
     }
-
-    // Apply position and color using filter
-    logo.style.left = x + 'px';
-    logo.style.top = y + 'px';
-    logo.style.filter = `hue-rotate(${hueRotation}deg) saturate(150%) brightness(1)`;
-
-    requestAnimationFrame(animate);
+    
+    // Draw the Netflix logo using actual SVG paths
+    push();
+    translate(position.x, position.y);
+    scale(logoWidth / 3794.02395);
+    
+    fill(currentColor);
+    noStroke();
+    
+    drawingContext.fillStyle = currentColor;
+    
+    // Main NETFLIX text paths and polygons
+    let p = new Path2D("M361.81156,587.45606L150.9214,0H0v1039.03793l163.91463-21.97965V453.58002l182.10978,539.2848,175.70386-19.76584V0h-159.91671v587.45606ZM1121.41593,0h-443.76887v959.11193l443.76887-35.9667v-152.85846c-3.215-4.94267-7.82478-1.01147-12.90558-.90064-23.43192.51116-46.71639,1.28063-70.13369,1.81727l-200.8129,14.06949v-241.77613l213.8886-3.9963v-161.85014l-213.8886,3.9963v-219.79648h283.85216V0ZM1717.10567,0h-491.74388v161.85014h165.91359v749.3062l159.91671-1.99815V161.85014h165.91359V0ZM2266.81936,0h-445.76783v901.16559h155.91879v-369.65772h219.88548v-161.85014h-219.88548v-207.80759h289.84904V0ZM2526.68402,0h-157.91775v911.15634l431.77512,21.97965v-159.85199l-273.85737-16.98427V0ZM3092.38938,0h-155.91879v945.12488l155.91879,11.9889V0ZM3402.22801,0h-171.91046l185.69924,488.59353-205.67934,476.50266,171.99226,19.10168,117.82303-272.85156,114.31255,299.38132,174.5189,28.37694,5.01658-1.04177-203.04031-543.52973L3794.02395,0h-172.90994l-113.94057,271.70797L3402.22801,0Z");
+    drawingContext.fill(p);
+    
+    let poly1 = new Path2D();
+    poly1.moveTo(361.81156, 587.45606);
+    poly1.lineTo(361.81156, 0);
+    poly1.lineTo(521.72827, 0);
+    poly1.lineTo(521.72827, 973.09898);
+    poly1.lineTo(346.02441, 992.86482);
+    poly1.lineTo(163.91463, 453.58002);
+    poly1.lineTo(163.91463, 1017.05828);
+    poly1.lineTo(0, 1039.03793);
+    poly1.lineTo(0, 0);
+    poly1.lineTo(150.9214, 0);
+    poly1.closePath();
+    drawingContext.fill(poly1);
+    
+    let poly2 = new Path2D();
+    poly2.moveTo(3402.22801, 0);
+    poly2.lineTo(3507.17343, 271.70797);
+    poly2.lineTo(3621.114, 0);
+    poly2.lineTo(3794.02395, 0);
+    poly2.lineTo(3590.96045, 494.53307);
+    poly2.lineTo(3794.00076, 1038.0628);
+    poly2.lineTo(3788.98418, 1039.10456);
+    poly2.lineTo(3614.46528, 1010.72762);
+    poly2.lineTo(3500.15274, 711.3463);
+    poly2.lineTo(3382.3297, 984.19786);
+    poly2.lineTo(3210.33744, 965.09619);
+    poly2.lineTo(3416.01678, 488.59353);
+    poly2.lineTo(3230.31754, 0);
+    poly2.closePath();
+    drawingContext.fill(poly2);
+    
+    let p3 = new Path2D("M1121.41593,0v161.85014h-283.85216v219.79648l213.8886-3.9963v161.85014l-213.8886,3.9963v241.77613l200.8129-14.06949c23.4173-.53664,46.70177-1.30611,70.13369-1.81727,5.0808-.11084,9.69057-4.04203,12.90558.90064v152.85846l-443.76887,35.9667V0h443.76887Z");
+    drawingContext.fill(p3);
+    
+    let poly3 = new Path2D();
+    poly3.moveTo(2266.81936, 0);
+    poly3.lineTo(2266.81936, 161.85014);
+    poly3.lineTo(1976.97033, 161.85014);
+    poly3.lineTo(1976.97033, 369.65772);
+    poly3.lineTo(2196.8558, 369.65772);
+    poly3.lineTo(2196.8558, 531.50786);
+    poly3.lineTo(1976.97033, 531.50786);
+    poly3.lineTo(1976.97033, 901.16559);
+    poly3.lineTo(1821.05154, 901.16559);
+    poly3.lineTo(1821.05154, 0);
+    poly3.closePath();
+    drawingContext.fill(poly3);
+    
+    let poly4 = new Path2D();
+    poly4.moveTo(1717.10567, 0);
+    poly4.lineTo(1717.10567, 161.85014);
+    poly4.lineTo(1551.19209, 161.85014);
+    poly4.lineTo(1551.19209, 909.15819);
+    poly4.lineTo(1391.27538, 911.15634);
+    poly4.lineTo(1391.27538, 161.85014);
+    poly4.lineTo(1225.36179, 161.85014);
+    poly4.lineTo(1225.36179, 0);
+    poly4.closePath();
+    drawingContext.fill(poly4);
+    
+    let poly5 = new Path2D();
+    poly5.moveTo(2526.68402, 0);
+    poly5.lineTo(2526.68402, 756.29972);
+    poly5.lineTo(2800.54138, 773.284);
+    poly5.lineTo(2800.54138, 933.13599);
+    poly5.lineTo(2368.76627, 911.15634);
+    poly5.lineTo(2368.76627, 0);
+    poly5.closePath();
+    drawingContext.fill(poly5);
+    
+    let poly6 = new Path2D();
+    poly6.moveTo(3092.38938, 0);
+    poly6.lineTo(3092.38938, 957.11378);
+    poly6.lineTo(2936.47059, 945.12488);
+    poly6.lineTo(2936.47059, 0);
+    poly6.closePath();
+    drawingContext.fill(poly6);
+    
+    // STREAMING text paths
+    let p4 = new Path2D("M1277.54487,1158.9257h-106.6416v60.979h105.77441c32.36816,0,40.45996-5.77979,40.45996-28.8999,0-26.58838-6.64648-32.0791-39.59277-32.0791Z");
+    drawingContext.fill(p4);
+    
+    let triangleA = new Path2D();
+    triangleA.moveTo(1846.28999, 1246.20402);
+    triangleA.lineTo(1950.331, 1246.20402);
+    triangleA.lineTo(1898.02143, 1154.01262);
+    triangleA.closePath();
+    drawingContext.fill(triangleA);
+    
+    let p2 = new Path2D("M1897.01203,996.16057c-1012.51929,0-1833.32837,105.25269-1833.32837,235.08838s820.80908,235.08862,1833.32837,235.08862,1833.32825-105.25269,1833.32825-235.08862-820.80884-235.08838-1833.32825-235.08838ZM709.95503,1301.11418c-12.71582,12.13818-37.57031,16.18408-102.5957,16.18408-69.35938,0-91.03516-3.17871-103.17285-14.73877-8.66992-8.38135-12.42676-19.94141-12.42676-38.14844,0-1.73389,0-6.06885.28809-9.82617h43.63965v2.02344c0,12.42676,2.3125,19.07373,7.80273,22.25293,6.93652,4.0459,21.96484,5.77979,50.28613,5.77979,23.9873,0,39.01562-.8667,59.82324-3.46777,10.98242-1.44482,16.47363-3.46826,19.94141-7.51416,3.75684-4.62402,5.78027-10.40381,5.78027-16.47314,0-11.271-4.91309-16.76221-18.20703-19.65186-8.0918-1.73438-8.38086-1.73438-60.97949-2.02295h-27.74414c-40.74902-.28906-56.64453-3.46826-67.33691-13.29443-9.24805-8.0918-13.58301-20.22998-13.58301-37.28125,0-21.38574,5.20117-39.01514,14.44922-47.10693,13.00586-12.13818,42.4834-16.76221,106.06445-16.76221,38.72559,0,59.53418,1.44482,72.82812,5.49121,23.9873,6.93604,32.36816,19.94092,32.36816,49.70801v3.75684h-43.35059c-.28906-11.271-3.17871-17.05078-9.24805-19.94092-8.0918-3.75684-26.58789-6.06885-47.97461-6.06885-36.41406,0-61.8457,2.31201-70.51562,6.64697-6.93652,3.17871-10.4043,9.82617-10.4043,18.78516,0,8.38086,2.60059,13.87207,8.0918,17.05078,6.64746,3.75732,17.62891,4.91309,47.97461,4.91309h32.65723c57.7998,0,75.42871,3.1792,87.56738,16.18408,8.0918,8.38135,11.84863,21.09717,11.84863,40.17139,0,20.22998-4.33496,34.10205-13.87207,43.3501ZM1034.49702,1158.9257h-90.45703v156.63867h-44.50586v-156.63867h-90.74707v-36.12549h225.70996v36.12549ZM1358.75386,1277.41594v38.14844h-44.79492v-28.90039c-.57812-26.29883-6.64746-31.50098-35.83594-31.21191h-107.21973v60.1123h-44.21777v-192.76416h163.28613c33.81348,0,49.12988,4.0459,59.53418,15.31738,8.38086,9.24805,12.42773,24.27588,12.42773,46.24023,0,21.09668-2.60156,32.9458-8.38184,40.1709-5.7793,7.2251-12.71582,10.69336-24.27539,12.71631,24.27539,2.02295,29.7666,9.53711,29.47754,40.1709ZM1672.31831,1315.56438h-206.63672v-192.76416h204.90234v33.81348h-160.97363v45.66211h153.1709v30.34521h-153.1709v49.13037h162.70801v33.81299ZM1988.76753,1315.56438l-21.96387-38.14844h-137.56445l-21.38672,38.14844h-49.99707l110.39844-192.76416h60.40137l108.66504,192.76416h-48.55273ZM2436.14057,1315.56438h-43.63965l1.73438-158.66211-99.70605,158.66211h-34.96875l-99.12793-158.66211,1.15625,158.66211h-43.35059v-192.76416h68.7832l90.74609,145.0791,90.45703-145.0791h67.91602v192.76416ZM2588.72846,1315.56438h-44.50684v-192.76416h44.50684v192.76416ZM2952.28901,1315.56438h-69.36035l-143.92285-159.52881.86719,159.52881h-43.06152v-192.76416h69.07129l144.79004,160.396-.86719-160.396h42.4834v192.76416ZM3302.26753,1232.91008c0,35.25781-2.02344,47.97412-8.95898,60.69043-5.78027,10.40381-15.31738,16.76172-30.3457,20.51904-10.40332,2.60107-26.87695,3.17871-84.96582,3.17871-51.15332,0-76.00781-1.73389-87.85645-6.35791-18.49609-6.93604-28.0332-18.20703-32.0791-38.72607-2.3125-10.98193-3.17969-23.69824-3.17969-51.15332,0-50.86426,3.17969-67.04834,15.60645-80.63135,8.0918-8.67041,19.36328-13.87207,34.68066-15.89551,17.91797-2.60059,38.43652-3.46777,95.08105-3.46777,56.35547,0,76.58496,4.0459,88.72363,17.91797,8.38086,9.24805,12.42676,24.27637,12.42676,45.66211h-43.63867c-.28906-12.1377-1.73438-16.76172-7.22559-21.09668-7.51367-6.06934-17.33984-7.2251-54.91016-7.2251-69.64941,0-80.34277,1.15576-87.85645,10.11475-6.06934,6.93604-8.0918,19.65234-8.0918,49.7085,0,37.57031,2.31152,50.5752,10.4043,57.51123,8.38086,7.51416,19.3623,8.95898,71.67188,8.95898,57.22266,0,63.29102-1.15576,71.96094-13.58301,3.75781-4.91309,5.20215-14.16113,5.20215-27.45508h-85.83301v-29.18896h129.18359v20.51904Z");
+    drawingContext.fill(p2);
+    
+    pop();
 }
 
-// Handle window resize
-window.addEventListener('resize', () => {
-    const containerWidth = container.clientWidth;
-    const containerHeight = container.clientHeight;
-    const logoWidth = logo.clientWidth;
-    const logoHeight = logo.clientHeight;
-
-    // Keep logo within bounds after resize
-    if (x + logoWidth > containerWidth) x = containerWidth - logoWidth;
-    if (y + logoHeight > containerHeight) y = containerHeight - logoHeight;
-});
-
-// Set initial position and color immediately
-logo.style.left = x + 'px';
-logo.style.top = y + 'px';
-logo.style.filter = `hue-rotate(${hueRotation}deg) saturate(150%) brightness(1)`;
-
-// Start animation
-animate();
+function windowResized() {
+    resizeCanvas(windowWidth, windowHeight);
+}
