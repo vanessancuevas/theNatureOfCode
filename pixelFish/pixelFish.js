@@ -187,10 +187,19 @@ class Fish {
     let target = createVector(ax * this.maxForce, ay * this.maxForce);
     this.acceleration.lerp(target, 0.08); // smooth, gradual steering
 
-    // Perlin noise wander — slow-drifting angle gives long organic swim arcs
+    // Perlin noise wander — scales back when hungry and food is close
+    let wanderScale = (nearest && this.ghrelin >= HUNGER_THRESH)
+      ? map(minDist, 0, diag * 0.4, 0.05, 1.0)
+      : 1.0;
     let wanderAngle = map(noise(this.noiseOffset + frameCount * 0.004), 0, 1, -PI, PI);
-    let wander = p5.Vector.fromAngle(wanderAngle).mult(this.maxForce * 0.7);
-    this.acceleration.add(wander);
+    this.acceleration.add(p5.Vector.fromAngle(wanderAngle).mult(this.maxForce * 0.7 * wanderScale));
+
+    // Ghrelin-driven food seek — hunger directly orients fish toward nearest food
+    if (nearest && this.ghrelin >= HUNGER_THRESH) {
+      let seek = p5.Vector.sub(nearest.position, this.position)
+                           .setMag(this.maxForce * this.ghrelin * 1.5);
+      this.acceleration.add(seek);
+    }
 
     // Boundary avoidance
     const M = 60;
