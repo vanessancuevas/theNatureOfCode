@@ -183,15 +183,15 @@ class Fish {
       inputs = [0, 0, 1, this.velocity.x/this.maxSpeed, this.velocity.y/this.maxSpeed,
                 this.ghrelin, this.leptin];
     }
-    // Perlin noise wander — gentle organic drift when not seeking
-    let wanderAngle = map(noise(this.noiseOffset + frameCount * 0.004), 0, 1, -PI, PI);
-    let wanderForce = p5.Vector.fromAngle(wanderAngle).mult(this.maxForce * 0.5);
-    this.acceleration.add(wanderForce);
+    // Perlin noise wander — offset from current heading so no directional bias
+    let wanderOffset = map(noise(this.noiseOffset + frameCount * 0.004), 0, 1, -0.6, 0.6);
+    let wanderAngle  = this.velocity.heading() + wanderOffset;
+    this.acceleration.add(p5.Vector.fromAngle(wanderAngle).mult(this.maxForce * 0.5));
 
-    // Reynolds seek toward food when hungry — dominates wander
+    // Reynolds seek toward food when hungry
     if (nearest && this.ghrelin >= HUNGER_THRESH) {
       let desired = p5.Vector.sub(nearest.position, this.position).setMag(this.maxSpeed);
-      let steer   = p5.Vector.sub(desired, this.velocity).limit(this.maxForce * 4);
+      let steer   = p5.Vector.sub(desired, this.velocity).limit(this.maxForce * 2);
       this.acceleration.add(steer);
     }
 
@@ -505,9 +505,12 @@ function setup() {
 function draw() {
   background(255);
 
-  // Auto-spawn food
+  // Auto-spawn food at random depths so fish spread through the tank
   if (frameCount % FOOD_RATE === 0)
-    foodParticles.push(new FoodParticle(random(SX + 10, SX + SW - 10), WLINE));
+    foodParticles.push(new FoodParticle(
+      random(SX + 10, SX + SW - 10),
+      random(WLINE, SBOT - 20)
+    ));
 
   // Update all fish
   for (let f of fish) { f.update(); f.checkEdges(); }
