@@ -315,18 +315,6 @@ class Fish {
       noTint();
     }
 
-    // Leptin fullness indicator — warm glow ring when getting stuffed
-    if (!this.isDropping && this.leptin > 0.4) {
-      let lerpAmt = map(this.leptin, 0.4, LETHAL_LEPTIN, 0, 1);
-      let glowR = lerp(255, 255, lerpAmt);
-      let glowG = lerp(200,   0, lerpAmt);
-      let glowB = lerp(  0,   0, lerpAmt);
-      let glowA = lerp( 60, 200, lerpAmt);
-      noFill(); strokeWeight(3);
-      stroke(glowR, glowG, glowB, glowA);
-      circle(0, 0, this.size + 10);
-      noStroke();
-    }
     pop();
   }
 }
