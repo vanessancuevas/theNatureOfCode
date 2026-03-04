@@ -140,13 +140,15 @@ class NeuralNetwork {
 // ─── Fish ─────────────────────────────────────────────────────────────────────
 class Fish {
   constructor(colorHex, brain) {
-    this.size       = 50;
+    this.size       = 35;
     this.colorHex   = colorHex;
     this.brain      = brain || new NeuralNetwork();
     this.fitness    = 0;
     this.age        = 0;
     this.lifespan   = round(random(LIFESPAN_MIN, LIFESPAN_MAX));
     this.isDead     = false;
+    this.isDying    = false;
+    this.dyingTimer = 0;
     this.isDropping = true;
     this.ghrelin    = random(0.3, 0.6); // start moderately hungry
     this.leptin     = 0;
@@ -201,7 +203,7 @@ class Fish {
     let coh = createVector(0,0), cohN = 0;
 
     for (let other of others) {
-      if (other === this || other.isDropping) continue;
+      if (other === this || other.isDropping || other.isDying) continue;
       let d = p5.Vector.dist(this.position, other.position);
       if (d < SEP_R && d > 0) {
         sep.add(p5.Vector.sub(this.position, other.position).div(d));
@@ -239,13 +241,27 @@ class Fish {
       }
       return;
     }
+    // Dying — float belly-up to surface then remove
+    if (this.isDying) {
+      this.dyingTimer++;
+      this.velocity.y = max(this.velocity.y - 0.12, -2); // buoyancy upward
+      this.velocity.x *= 0.97;
+      this.position.add(this.velocity);
+      if (this.position.y <= WLINE) {
+        this.position.y = WLINE;
+        this.velocity.set(0, 0);
+      }
+      if (this.dyingTimer > 240) this.isDead = true;
+      return;
+    }
+
     this.age++;
-    if (this.age >= this.lifespan) { this.isDead = true; return; }
+    if (this.age >= this.lifespan) { this.isDying = true; return; }
 
     // Hormone tick
     this.ghrelin = min(this.ghrelin + GHRELIN_RATE, 1.0);
     this.leptin  = max(this.leptin  - LEPTIN_DECAY,  0.0);
-    if (this.leptin >= LETHAL_LEPTIN) { this.isDead = true; return; } // overate
+    if (this.leptin >= LETHAL_LEPTIN) { this.isDying = true; return; } // overate
 
     this.think();
     this.flock(fish);
@@ -270,7 +286,7 @@ class Fish {
   }
 
   checkEdges() {
-    if (this.isDropping) {
+    if (this.isDropping || this.isDying) {
       this.position.x = constrain(this.position.x, SX + this.size/2, SX + SW - this.size/2);
       return;
     }
@@ -286,6 +302,20 @@ class Fish {
   display(isLeader) {
     push();
     translate(this.position.x, this.position.y);
+
+    // Belly-up float: upside down, fading out
+    if (this.isDying) {
+      let alpha = this.dyingTimer > 180 ? map(this.dyingTimer, 180, 240, 180, 0) : 180;
+      let dir = this.position.x < SX + SW / 2 ? 'right' : 'left';
+      scale(1, -1); // flip upside down
+      tint(160, 160, 160, alpha);
+      imageMode(CENTER);
+      image(coloredFishImages[this.colorHex][dir], 0, 0, this.size, this.size);
+      noTint();
+      pop();
+      return;
+    }
+
     let dir = this.velocity.x < -0.5 ? 'left' : 'right';
 
     // Fade out in the last 400 frames of life
@@ -399,9 +429,12 @@ function drawNet() {
 
 // ─── Evolution ────────────────────────────────────────────────────────────────
 function addGeneration() {
-  // Build mating pool from survivors (all currently living fish)
+  // Build mating pool from active survivors (exclude dying fish)
   let pool = [];
-  for (let f of fish) for (let t = 0; t < f.fitness + 1; t++) pool.push(f);
+  for (let f of fish) {
+    if (f.isDying) continue;
+    for (let t = 0; t < f.fitness + 1; t++) pool.push(f);
+  }
 
   for (let i = 0; i < SPAWN_COUNT; i++) {
     let brain;
@@ -467,7 +500,7 @@ function draw() {
 
   // Breed new fish when live population is low and none are currently dropping
   let dropping  = fish.some(f => f.isDropping);
-  let liveCount = fish.filter(f => !f.isDropping).length;
+  let liveCount = fish.filter(f => !f.isDropping && !f.isDying).length;
   if (!dropping && liveCount <= MIN_FISH) addGeneration();
 
   // Update food
@@ -479,10 +512,10 @@ function draw() {
     fd.update(); fd.checkEdges();
   }
 
-  // Leader = non-dropping fish with highest fitness
+  // Leader = non-dropping, non-dying fish with highest fitness
   let leaderIdx = -1, leaderFit = -1;
   for (let i = 0; i < fish.length; i++)
-    if (!fish[i].isDropping && fish[i].fitness > leaderFit)
+    if (!fish[i].isDropping && !fish[i].isDying && fish[i].fitness > leaderFit)
       { leaderFit = fish[i].fitness; leaderIdx = i; }
 
   // ── Clip simulation to the CRT screen hole ───────────────────────────────
