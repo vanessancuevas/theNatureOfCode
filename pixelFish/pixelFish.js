@@ -10,7 +10,7 @@ const SY   = 204;   // screen top edge
 const SW   = 522;   // screen width
 const SH   = 399;   // screen height
 const SR   = 40;    // CRT rounded-corner radius
-const WLINE = SY + 40;   // waterline (air strip at top, rest is water)
+const WLINE = SY + 65;   // waterline (air strip at top, rest is water)
 const SBOT  = SY + SH;   // screen bottom
 
 // ─── Global state ────────────────────────────────────────────────────────────
@@ -587,7 +587,7 @@ function draw() {
   // Glass tap shake — jitter translation
   let shakeX = 0, shakeY = 0;
   if (tapShake > 0) {
-    let mag = map(tapShake, 0, 18, 0, 4);
+    let mag = map(tapShake, 0, 18, 0, 12);
     shakeX = random(-mag, mag);
     shakeY = random(-mag, mag);
     tapShake--;
