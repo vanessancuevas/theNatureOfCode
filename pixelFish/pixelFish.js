@@ -157,10 +157,10 @@ class Fish {
       random(SX + this.size/2, SX + SW - this.size/2),
       random(SY - 180, SY - this.size)
     );
-    this.velocity     = createVector(random(-0.5, 0.5), random(0.5, 2));
+    this.velocity     = createVector(random(-0.2, 0.2), random(0.2, 0.6));
     this.acceleration = createVector(0, 0);
-    this.maxSpeed     = 3;
-    this.maxForce     = 0.4;
+    this.maxSpeed     = 1.2;
+    this.maxForce     = 0.06;
   }
 
   think() {
@@ -182,7 +182,8 @@ class Fish {
                 this.ghrelin, this.leptin];
     }
     let [ax, ay] = this.brain.forward(inputs);
-    this.acceleration = createVector(ax * this.maxForce, ay * this.maxForce);
+    let target = createVector(ax * this.maxForce, ay * this.maxForce);
+    this.acceleration.lerp(target, 0.08); // smooth, gradual steering
 
     // Boundary avoidance
     const M = 60;
@@ -230,13 +231,13 @@ class Fish {
 
   update() {
     if (this.isDropping) {
-      this.velocity.y += 0.35;
+      this.velocity.y += 0.12;
       this.velocity.x *= 0.97;
-      this.velocity.limit(6);
+      this.velocity.limit(2.5);
       this.position.add(this.velocity);
       if (this.position.y >= WLINE) {
         this.isDropping = false;
-        this.velocity.set(random(-1, 1), 0);
+        this.velocity.set(random(-0.3, 0.3), 0);
         this.position.y = WLINE;
       }
       return;
@@ -244,7 +245,7 @@ class Fish {
     // Dying — float belly-up to surface then remove
     if (this.isDying) {
       this.dyingTimer++;
-      this.velocity.y = max(this.velocity.y - 0.12, -2); // buoyancy upward
+      this.velocity.y = max(this.velocity.y - 0.04, -0.7); // gentle buoyancy upward
       this.velocity.x *= 0.97;
       this.position.add(this.velocity);
       if (this.position.y <= WLINE) {
