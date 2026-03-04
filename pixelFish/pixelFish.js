@@ -10,7 +10,7 @@ const SY   = 204;   // screen top edge
 const SW   = 522;   // screen width
 const SH   = 399;   // screen height
 const SR   = 40;    // CRT rounded-corner radius
-const WLINE = SY + 25;   // waterline (thin air strip at top, rest is water)
+const WLINE = SY + 40;   // waterline (air strip at top, rest is water)
 const SBOT  = SY + SH;   // screen bottom
 
 // ─── Global state ────────────────────────────────────────────────────────────
@@ -27,6 +27,11 @@ let rainbowPg    = { left: null, right: null };
 // Net drop animation
 let netY = -1;
 const NET_SPEED = 7;
+
+// Glass tap effect
+let tapShake  = 0;   // countdown frames
+let tapX = 0, tapY = 0;
+let ripples = [];    // [{x,y,r,alpha}]
 
 // Evolution
 let generation      = 1;
@@ -579,10 +584,32 @@ function draw() {
   }
   drawingContext.clip();
 
+  // Glass tap shake — jitter translation
+  let shakeX = 0, shakeY = 0;
+  if (tapShake > 0) {
+    let mag = map(tapShake, 0, 18, 0, 4);
+    shakeX = random(-mag, mag);
+    shakeY = random(-mag, mag);
+    tapShake--;
+    translate(shakeX, shakeY);
+  }
+
   liquid.show();
   for (let i = 0; i < fish.length; i++) fish[i].display(i === leaderIdx);
   drawNet();
   for (let fd of foodParticles) fd.display();
+
+  // Ripple rings from tap
+  for (let i = ripples.length - 1; i >= 0; i--) {
+    let rp = ripples[i];
+    rp.r     += 3.5;
+    rp.alpha -= 6;
+    if (rp.alpha <= 0) { ripples.splice(i, 1); continue; }
+    push();
+    noFill(); stroke(255, 255, 255, rp.alpha); strokeWeight(1.5);
+    circle(rp.x, rp.y, rp.r * 2);
+    pop();
+  }
 
   drawingContext.restore();
   // ─────────────────────────────────────────────────────────────────────────
@@ -592,8 +619,28 @@ function draw() {
 }
 
 function mouseClicked() {
-  // Only drop food inside the tank screen
-  if (mouseX > SX && mouseX < SX+SW && mouseY > SY && mouseY < SBOT) {
-    foodParticles.push(new FoodParticle(mouseX, mouseY));
+  if (mouseX < SX || mouseX > SX+SW || mouseY < SY || mouseY > SBOT) return;
+
+  if (mouseY < WLINE) {
+    // Above waterline — drop food in
+    foodParticles.push(new FoodParticle(mouseX, WLINE));
+  } else {
+    // In the water — tap the glass
+    tapShake = 18;
+    tapX = mouseX; tapY = mouseY;
+
+    // Spawn ripple rings
+    for (let i = 0; i < 3; i++)
+      ripples.push({ x: mouseX, y: mouseY, r: i * 12, alpha: 180 - i * 40 });
+
+    // Jolt all active fish away from tap point
+    for (let f of fish) {
+      if (f.isDropping || f.isDying) continue;
+      let d = dist(f.position.x, f.position.y, mouseX, mouseY);
+      let force = p5.Vector.sub(f.position, createVector(mouseX, mouseY))
+                            .setMag(map(d, 0, SW, 3.5, 0.5));
+      f.velocity.add(force);
+      f.velocity.limit(f.maxSpeed * 4); // brief panic speed
+    }
   }
 }
