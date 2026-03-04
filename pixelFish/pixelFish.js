@@ -459,18 +459,19 @@ class Liquid {
     return p.velocity.copy().mult(-1).normalize().mult(this.c * s * s);
   }
   show() {
+    const PAD = 20; // overdraw past screen edges to cover max shake offset
     for (let y = this.y; y < this.y + this.h; y++) {
       let t = map(y, this.y, this.y+this.h, 0, 1);
       stroke(lerpColor(color(135,206,250), color(0,105,148), t));
-      line(this.x, y, this.x+this.w, y);
+      line(this.x - PAD, y, this.x+this.w + PAD, y);
     }
     // Waterline
     strokeWeight(2); stroke(0, 105, 148);
-    line(this.x, this.y, this.x+this.w, this.y);
+    line(this.x - PAD, this.y, this.x+this.w + PAD, this.y);
     strokeWeight(1);
     // Air zone (above waterline, inside screen)
     noStroke(); fill(200, 230, 255, 60);
-    rect(SX, SY, SW, WLINE - SY);
+    rect(SX - PAD, SY, SW + PAD * 2, WLINE - SY);
   }
 }
 
