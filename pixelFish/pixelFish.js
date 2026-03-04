@@ -33,18 +33,18 @@ let generation      = 1;
 
 const FOOD_RATE     = 90;
 const MUTATION_RATE = 0.1;
-const LIFESPAN_MIN  = 1400;   // frames a fish can live (min)
-const LIFESPAN_MAX  = 2400;   // frames a fish can live (max)
+const LIFESPAN_MIN  = 700;    // frames a fish can live (min)
+const LIFESPAN_MAX  = 1400;   // frames a fish can live (max)
 const SPAWN_COUNT   = 7;      // new fish dropped per wave
 const MIN_FISH      = 3;      // trigger new wave when live fish fall to this
 
 // Hormone constants
-const GHRELIN_RATE  = 0.0005; // hunger builds per frame
-const GHRELIN_DECAY = 0.35;   // drops sharply when fish eats
-const LEPTIN_RISE   = 0.28;   // leptin spike per food item eaten
-const LEPTIN_DECAY  = 0.0003; // metabolizes per frame
-const LETHAL_LEPTIN = 1.0;    // overeating death threshold
-const HUNGER_THRESH = 0.25;   // min ghrelin needed to eat
+const GHRELIN_RATE  = 0.001;  // hunger builds per frame
+const GHRELIN_DECAY = 0.3;    // drops sharply when fish eats
+const LEPTIN_RISE   = 0.32;   // leptin spike per food item eaten
+const LEPTIN_DECAY  = 0.0002; // metabolizes per frame (slower = easier to overeat)
+const LETHAL_LEPTIN = 0.9;    // overeating death threshold (lower = easier to die)
+const HUNGER_THRESH = 0.2;    // min ghrelin needed to eat
 
 // ─── Fish SVG assets (embedded base64) ───────────────────────────────────────
 const fishLeftSVG = `data:image/svg+xml;base64,${btoa(`<?xml version="1.0" encoding="UTF-8"?>
