@@ -120,12 +120,16 @@ class NeuralNetwork {
 // ─── Fish ─────────────────────────────────────────────────────────────────────
 class Fish {
   constructor(colorHex, brain) {
-    this.position    = createVector(random(width), random(height / 4, height));
+    this.size        = 60;
+    // Spawn fully inside the tank (clear of waterline and bottom edge)
+    this.position    = createVector(
+      random(width),
+      random(height / 4 + this.size / 2, height - this.size / 2)
+    );
     this.velocity    = createVector(0, 0);
     this.acceleration = createVector(0, 0);
     this.maxSpeed    = 3;
     this.maxForce    = 0.4;
-    this.size        = 60;
     this.colorHex    = colorHex;
 
     // Neuroevolution
