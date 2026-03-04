@@ -2,15 +2,16 @@
 // Simulation lives inside a vintage CRT monitor frame.
 
 // ─── Screen / canvas layout ───────────────────────────────────────────────────
-// Canvas: 1000 × 900.  Computer image: 900×900 drawn at x=50, y=0.
-// Screen rectangle estimated from the image (tweak if needed):
-const SX   = 197;   // screen left edge
-const SY   = 108;   // screen top edge
-const SW   = 608;   // screen width
-const SH   = 352;   // screen height
-const SR   = 20;    // CRT rounded-corner radius
-const WLINE = SY + Math.round(SH * 0.28);  // waterline  (~206)
-const SBOT  = SY + SH;                      // screen bottom (~460)
+// Canvas: 1000 × 980.  Computer image: 980×980 drawn at x=10, y=0.
+// Screen hole measured from alpha channel of computer.png (246,192)→(783,592)
+// at 980/1024 = 0.957 scale:
+const SX   = 245;   // screen left edge
+const SY   = 184;   // screen top edge
+const SW   = 514;   // screen width
+const SH   = 383;   // screen height
+const SR   = 40;    // CRT rounded-corner radius
+const WLINE = SY + 25;   // waterline (thin air strip at top, rest is water)
+const SBOT  = SY + SH;   // screen bottom
 
 // ─── Global state ────────────────────────────────────────────────────────────
 let fish = [];
@@ -384,35 +385,6 @@ function nextGeneration() {
   netY        = SY;
 }
 
-// ─── HUD ──────────────────────────────────────────────────────────────────────
-function drawHUD() {
-  // Panel sits in the top-left corner of the screen area
-  const hx = SX + 8, hy = SY + 8;
-  push();
-  noStroke(); fill(0, 0, 0, 110);
-  rect(hx, hy, 200, 76, 5);
-  fill(255); textSize(12); textFont('monospace'); textAlign(LEFT, TOP);
-  text(`GEN ${generation}`,                       hx+8, hy+8);
-  text(`BEST: ${lastBestFitness} eaten`,           hx+8, hy+24);
-  text(`AVG:  ${lastAvgFitness.toFixed(1)} eaten`, hx+8, hy+40);
-  // Progress bar
-  let p = genTimer / GEN_DURATION;
-  fill(40, 40, 40, 160); rect(hx+8, hy+60, 184, 8, 3);
-  fill(80, 200, 120);    rect(hx+8, hy+60, 184*p, 8, 3);
-  pop();
-
-  if (newGenFlash > 0) {
-    let a = map(newGenFlash, 120, 0, 255, 0);
-    let cx = SX + SW/2, cy = SY + SH/2;
-    push();
-    textAlign(CENTER, CENTER); textSize(30); textFont('monospace');
-    fill(0, 0, 0, a*0.6); text('NEW GENERATION', cx+2, cy+2);
-    fill(255, 230, 0, a);  text('NEW GENERATION', cx, cy);
-    pop();
-    newGenFlash--;
-  }
-}
-
 // ─── p5 lifecycle ─────────────────────────────────────────────────────────────
 function preload() {
   fishLeftImg  = loadImage(fishLeftSVG);
@@ -421,7 +393,7 @@ function preload() {
 }
 
 function setup() {
-  createCanvas(1000, 900);
+  createCanvas(1000, 980);
 
   for (let colorHex of rainbowColors) {
     coloredFishImages[colorHex] = {
@@ -450,7 +422,6 @@ function setup() {
 }
 
 function draw() {
-  // White canvas — MULTIPLY blend will make the white CRT screen "transparent"
   background(255);
 
   genTimer++;
@@ -458,8 +429,8 @@ function draw() {
     foodParticles.push(new FoodParticle(random(SX + 10, SX + SW - 10), WLINE));
   if (genTimer >= GEN_DURATION) nextGeneration();
 
-  // Update physics (outside clip — no rendering)
-  for (let f of fish)         { f.update(); f.checkEdges(); }
+  // Update physics (no rendering yet)
+  for (let f of fish) { f.update(); f.checkEdges(); }
   for (let i = foodParticles.length-1; i >= 0; i--) {
     let fd = foodParticles[i];
     if (fd.isEaten) { foodParticles.splice(i, 1); continue; }
@@ -468,13 +439,13 @@ function draw() {
     fd.update(); fd.checkEdges();
   }
 
-  // Leader (non-dropping fish with highest fitness)
+  // Leader = non-dropping fish with highest fitness
   let leaderIdx = -1, leaderFit = -1;
   for (let i = 0; i < fish.length; i++)
     if (!fish[i].isDropping && fish[i].fitness > leaderFit)
       { leaderFit = fish[i].fitness; leaderIdx = i; }
 
-  // ── Clip everything to the CRT screen ────────────────────────────────────
+  // ── Clip simulation to the CRT screen hole ───────────────────────────────
   drawingContext.save();
   drawingContext.beginPath();
   if (drawingContext.roundRect) {
@@ -489,16 +460,24 @@ function draw() {
   drawNet();
   for (let fd of foodParticles) fd.display();
 
+  // "NEW GENERATION" flash — inside the screen, behind the frame
+  if (newGenFlash > 0) {
+    let a = map(newGenFlash, 120, 0, 255, 0);
+    let cx = SX + SW / 2, cy = SY + SH / 2;
+    push();
+    textAlign(CENTER, CENTER); textSize(28); textFont('monospace');
+    fill(0, 0, 0, a * 0.6); text('NEW GENERATION', cx + 2, cy + 2);
+    fill(255, 230, 0, a);    text('NEW GENERATION', cx, cy);
+    pop();
+    newGenFlash--;
+  }
+
   drawingContext.restore();
   // ─────────────────────────────────────────────────────────────────────────
 
-  // Computer frame overlay — MULTIPLY makes white screen transparent,
-  // grey bezel naturally darkens the edges of the simulation
-  blendMode(MULTIPLY);
-  image(computerImg, 50, 0, 900, 900);
-  blendMode(BLEND);
-
-  drawHUD();
+  // Computer frame on top — PNG alpha channel handles compositing naturally:
+  // transparent screen hole shows simulation, opaque bezel covers edges
+  image(computerImg, 10, 0, 980, 980);
 }
 
 function mouseClicked() {
