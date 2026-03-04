@@ -8,7 +8,7 @@
 const SX   = 245;   // screen left edge
 const SY   = 204;   // screen top edge
 const SW   = 514;   // screen width
-const SH   = 383;   // screen height
+const SH   = 399;   // screen height
 const SR   = 40;    // CRT rounded-corner radius
 const WLINE = SY + 25;   // waterline (thin air strip at top, rest is water)
 const SBOT  = SY + SH;   // screen bottom
@@ -30,15 +30,13 @@ const NET_SPEED = 7;
 
 // Evolution
 let generation      = 1;
-let genTimer        = 0;
-let newGenFlash     = 0;
-let lastBestFitness = 0;
-let lastAvgFitness  = 0;
 
-const GEN_DURATION  = 1200;
 const FOOD_RATE     = 90;
 const MUTATION_RATE = 0.1;
-const ELITISM       = 2;
+const LIFESPAN_MIN  = 1400;   // frames a fish can live (min)
+const LIFESPAN_MAX  = 2400;   // frames a fish can live (max)
+const SPAWN_COUNT   = 7;      // new fish dropped per wave
+const MIN_FISH      = 3;      // trigger new wave when live fish fall to this
 
 // ─── Fish SVG assets (embedded base64) ───────────────────────────────────────
 const fishLeftSVG = `data:image/svg+xml;base64,${btoa(`<?xml version="1.0" encoding="UTF-8"?>
@@ -138,6 +136,9 @@ class Fish {
     this.colorHex   = colorHex;
     this.brain      = brain || new NeuralNetwork();
     this.fitness    = 0;
+    this.age        = 0;
+    this.lifespan   = round(random(LIFESPAN_MIN, LIFESPAN_MAX));
+    this.isDead     = false;
     this.isDropping = true;
     // Spawn above the screen — falls through net into water
     this.position     = createVector(
@@ -226,6 +227,8 @@ class Fish {
       }
       return;
     }
+    this.age++;
+    if (this.age >= this.lifespan) { this.isDead = true; return; }
     this.think();
     this.flock(fish);
     this.velocity.add(this.acceleration);
@@ -261,22 +264,31 @@ class Fish {
     translate(this.position.x, this.position.y);
     let dir = this.velocity.x < -0.5 ? 'left' : 'right';
 
+    // Fade out in the last 400 frames of life
+    let alpha = 255;
+    if (!this.isDropping && this.age > this.lifespan - 400)
+      alpha = map(this.age, this.lifespan - 400, this.lifespan, 255, 0);
+
     if (isLeader && !this.isDropping) {
+      tint(255, alpha);
       imageMode(CENTER);
       image(updateRainbowPg(dir), 0, 0, this.size, this.size);
+      noTint();
     } else if (this.isDropping) {
       tint(255, 255, 255, 210);
       imageMode(CENTER);
       image(coloredFishImages[this.colorHex][dir], 0, 0, this.size, this.size);
       noTint();
     } else if (this.fitness === 0) {
-      tint(180, 180, 180, 170);
+      tint(180, 180, 180, alpha * 0.67);
       imageMode(CENTER);
       image(coloredFishImages[this.colorHex][dir], 0, 0, this.size, this.size);
       noTint();
     } else {
+      tint(255, alpha);
       imageMode(CENTER);
       image(coloredFishImages[this.colorHex][dir], 0, 0, this.size, this.size);
+      noTint();
     }
     pop();
   }
@@ -361,28 +373,22 @@ function drawNet() {
 }
 
 // ─── Evolution ────────────────────────────────────────────────────────────────
-function nextGeneration() {
-  fish.sort((a, b) => b.fitness - a.fitness);
-  lastBestFitness = fish[0].fitness;
-  lastAvgFitness  = fish.reduce((s, f) => s+f.fitness, 0) / fish.length;
-
+function addGeneration() {
+  // Build mating pool from survivors (all currently living fish)
   let pool = [];
-  for (let f of fish) for (let t = 0; t < f.fitness+1; t++) pool.push(f);
+  for (let f of fish) for (let t = 0; t < f.fitness + 1; t++) pool.push(f);
 
-  let newFish = [];
-  for (let i = 0; i < ELITISM; i++)
-    newFish.push(new Fish(rainbowColors[i % rainbowColors.length], fish[i].brain.copy()));
-  for (let i = ELITISM; i < fish.length; i++) {
-    let child = random(pool).brain.copy();
-    child.mutate();
-    newFish.push(new Fish(rainbowColors[i % rainbowColors.length], child));
+  for (let i = 0; i < SPAWN_COUNT; i++) {
+    let brain;
+    if (pool.length > 0) {
+      brain = pool[floor(random(pool.length))].brain.copy();
+      brain.mutate();
+    }
+    fish.push(new Fish(rainbowColors[(fish.length + i) % rainbowColors.length], brain));
   }
 
-  fish = newFish;
   generation++;
-  genTimer    = 0;
-  newGenFlash = 120;
-  netY        = SY;
+  netY = SY;
 }
 
 // ─── p5 lifecycle ─────────────────────────────────────────────────────────────
@@ -424,14 +430,23 @@ function setup() {
 function draw() {
   background(255);
 
-  genTimer++;
-  if (genTimer % FOOD_RATE === 0)
+  // Auto-spawn food
+  if (frameCount % FOOD_RATE === 0)
     foodParticles.push(new FoodParticle(random(SX + 10, SX + SW - 10), WLINE));
-  if (genTimer >= GEN_DURATION) nextGeneration();
 
-  // Update physics (no rendering yet)
+  // Update all fish
   for (let f of fish) { f.update(); f.checkEdges(); }
-  for (let i = foodParticles.length-1; i >= 0; i--) {
+
+  // Remove fish that have reached end of lifespan
+  fish = fish.filter(f => !f.isDead);
+
+  // Breed new fish when live population is low and none are currently dropping
+  let dropping  = fish.some(f => f.isDropping);
+  let liveCount = fish.filter(f => !f.isDropping).length;
+  if (!dropping && liveCount <= MIN_FISH) addGeneration();
+
+  // Update food
+  for (let i = foodParticles.length - 1; i >= 0; i--) {
     let fd = foodParticles[i];
     if (fd.isEaten) { foodParticles.splice(i, 1); continue; }
     fd.applyForce(createVector(0, 0.1 * fd.mass));
@@ -460,23 +475,10 @@ function draw() {
   drawNet();
   for (let fd of foodParticles) fd.display();
 
-  // "NEW GENERATION" flash — inside the screen, behind the frame
-  if (newGenFlash > 0) {
-    let a = map(newGenFlash, 120, 0, 255, 0);
-    let cx = SX + SW / 2, cy = SY + SH / 2;
-    push();
-    textAlign(CENTER, CENTER); textSize(28); textFont('monospace');
-    fill(0, 0, 0, a * 0.6); text('NEW GENERATION', cx + 2, cy + 2);
-    fill(255, 230, 0, a);    text('NEW GENERATION', cx, cy);
-    pop();
-    newGenFlash--;
-  }
-
   drawingContext.restore();
   // ─────────────────────────────────────────────────────────────────────────
 
-  // Computer frame on top — PNG alpha channel handles compositing naturally:
-  // transparent screen hole shows simulation, opaque bezel covers edges
+  // Computer frame on top — PNG alpha channel handles compositing naturally
   image(computerImg, 10, 20, 980, 980);
 }
 
