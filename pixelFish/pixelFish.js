@@ -21,7 +21,6 @@ const GEN_DURATION  = 1200;  // frames per generation (~20 s at 60 fps)
 const FOOD_RATE     = 90;    // auto-spawn 1 food pellet every N frames
 const MUTATION_RATE = 0.1;
 const ELITISM       = 2;     // top N fish carry brains unchanged
-const STARVATION    = 500;   // frames without eating → isDead
 
 // ─── Fish SVG assets (embedded base64) ───────────────────────────────────────
 const fishLeftSVG = `data:image/svg+xml;base64,${btoa(`<?xml version="1.0" encoding="UTF-8"?>
@@ -133,10 +132,8 @@ class Fish {
     this.colorHex    = colorHex;
 
     // Neuroevolution
-    this.brain       = brain || new NeuralNetwork();
-    this.fitness     = 0;       // food eaten this generation
-    this.isDead      = false;
-    this.noFoodTimer = 0;       // frames since last meal
+    this.brain   = brain || new NeuralNetwork();
+    this.fitness = 0;   // food eaten this generation
   }
 
   // Gather sensory inputs and let the brain decide steering
@@ -177,14 +174,6 @@ class Fish {
   }
 
   update() {
-    if (this.isDead) return;
-
-    this.noFoodTimer++;
-    if (this.noFoodTimer > STARVATION) {
-      this.isDead = true;
-      return;
-    }
-
     this.think();
 
     this.velocity.add(this.acceleration);
@@ -197,15 +186,13 @@ class Fish {
       if (f.isEaten) continue;
       let d = p5.Vector.dist(this.position, f.position);
       if (d < this.size / 2 + f.radius) {
-        f.isEaten     = true;
+        f.isEaten = true;
         this.fitness++;
-        this.noFoodTimer = 0;
       }
     }
   }
 
   checkEdges() {
-    if (this.isDead) return;
 
     if (this.position.x > width)  this.position.x = 0;
     if (this.position.x < 0)      this.position.x = width;
@@ -223,13 +210,8 @@ class Fish {
     push();
     translate(this.position.x, this.position.y);
 
-    if (this.isDead) {
-      // Faded grey tint
-      tint(180, 180, 180, 100);
-    }
-
     // Gold ring around current leader
-    if (isLeader && !this.isDead) {
+    if (isLeader) {
       noFill();
       stroke(255, 215, 0);
       strokeWeight(3);
@@ -243,7 +225,6 @@ class Fish {
       image(currentFish, 0, 0);
     }
 
-    noTint();
     pop();
   }
 }
@@ -360,7 +341,6 @@ function nextGeneration() {
   }
 
   fish = newFish;
-  foodParticles = [];
   generation++;
   genTimer  = 0;
   newGenFlash = 120; // show banner for 2 seconds
@@ -454,7 +434,7 @@ function draw() {
   let leaderIdx = -1;
   let leaderFitness = -1;
   for (let i = 0; i < fish.length; i++) {
-    if (!fish[i].isDead && fish[i].fitness > leaderFitness) {
+    if (fish[i].fitness > leaderFitness) {
       leaderFitness = fish[i].fitness;
       leaderIdx     = i;
     }
