@@ -185,7 +185,9 @@ class Fish {
     this.ghrelin    = random(0.3, 0.6); // start moderately hungry
     this.leptin     = 0;
     this.facingDir  = 'right';
-    this.noiseOffset = random(10000); // unique noise seed per fish
+    this.noiseOffset  = random(10000); // unique noise seed per fish
+    this.isPanicked   = false;
+    this.panicTimer   = 0;
     // Spawn above the screen — falls through net into water
     this.position     = createVector(
       random(SX + this.size/2, SX + SW - this.size/2),
@@ -303,6 +305,20 @@ class Fish {
         this.velocity.set(0, 0);
       }
       if (this.dyingTimer > 240) this.isDead = true;
+      return;
+    }
+
+    // Panic — erratic Perlin noise walk, ignores NN and flocking
+    if (this.isPanicked) {
+      this.panicTimer--;
+      if (this.panicTimer <= 0) this.isPanicked = false;
+      let panicAngle = map(noise(this.noiseOffset + frameCount * 0.025), 0, 1, 0, TWO_PI);
+      this.acceleration = p5.Vector.fromAngle(panicAngle).mult(this.maxForce * 3);
+      this.velocity.add(this.acceleration);
+      this.velocity.limit(this.maxSpeed * 2.5);
+      this.position.add(this.velocity);
+      if (this.velocity.x < -0.35)     this.facingDir = 'left';
+      else if (this.velocity.x > 0.35) this.facingDir = 'right';
       return;
     }
 
@@ -622,25 +638,26 @@ function mouseClicked() {
   if (mouseX < SX || mouseX > SX+SW || mouseY < SY || mouseY > SBOT) return;
 
   if (mouseY < WLINE) {
-    // Above waterline — drop food in
-    foodParticles.push(new FoodParticle(mouseX, WLINE));
+    // Above waterline — food falls in from click position with gravity
+    foodParticles.push(new FoodParticle(mouseX, mouseY));
   } else {
     // In the water — tap the glass
     tapShake = 18;
-    tapX = mouseX; tapY = mouseY;
 
-    // Spawn ripple rings
-    for (let i = 0; i < 3; i++)
-      ripples.push({ x: mouseX, y: mouseY, r: i * 12, alpha: 180 - i * 40 });
+    // Ripple rings at tap point
+    for (let i = 0; i < 4; i++)
+      ripples.push({ x: mouseX, y: mouseY, r: i * 14, alpha: 200 - i * 40 });
 
-    // Jolt all active fish away from tap point
+    // Scatter + panic all active fish
     for (let f of fish) {
       if (f.isDropping || f.isDying) continue;
       let d = dist(f.position.x, f.position.y, mouseX, mouseY);
       let force = p5.Vector.sub(f.position, createVector(mouseX, mouseY))
-                            .setMag(map(d, 0, SW, 3.5, 0.5));
+                            .setMag(map(d, 0, SW, 4.5, 0.8));
       f.velocity.add(force);
-      f.velocity.limit(f.maxSpeed * 4); // brief panic speed
+      f.velocity.limit(f.maxSpeed * 3);
+      f.isPanicked  = true;
+      f.panicTimer  = round(random(80, 180)); // 1.5–3s of panic
     }
   }
 }
