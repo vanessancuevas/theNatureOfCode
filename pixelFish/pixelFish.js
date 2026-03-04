@@ -558,12 +558,6 @@ function setup() {
 function draw() {
   background(255);
 
-  // Auto-spawn food at random depths so fish spread through the tank
-  if (frameCount % FOOD_RATE === 0)
-    foodParticles.push(new FoodParticle(
-      random(SX + 10, SX + SW - 10),
-      random(WLINE, SBOT - 20)
-    ));
 
   // Update all fish
   for (let f of fish) { f.update(); f.checkEdges(); }
