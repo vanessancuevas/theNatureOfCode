@@ -10,17 +10,25 @@ let fishLeftImg, fishRightImg;
 let coloredFishImages = {};
 let liquid;
 
+// Rainbow rave rendering
+let origPixelIdx = { left: null, right: null }; // pre-computed opaque pixel indices
+let rainbowPg    = { left: null,  right: null  }; // reusable graphics (updated each frame)
+
+// Net drop animation
+let netY = -1;  // < 0 = inactive; >= 0 = current bottom-edge of net
+const NET_SPEED = 7;
+
 // Evolution
 let generation      = 1;
 let genTimer        = 0;
-let newGenFlash     = 0;   // frames remaining for "NEW GENERATION" banner
+let newGenFlash     = 0;
 let lastBestFitness = 0;
 let lastAvgFitness  = 0;
 
-const GEN_DURATION  = 1200;  // frames per generation (~20 s at 60 fps)
-const FOOD_RATE     = 90;    // auto-spawn 1 food pellet every N frames
+const GEN_DURATION  = 1200;
+const FOOD_RATE     = 90;
 const MUTATION_RATE = 0.1;
-const ELITISM       = 2;     // top N fish carry brains unchanged
+const ELITISM       = 2;
 
 // ─── Fish SVG assets (embedded base64) ───────────────────────────────────────
 const fishLeftSVG = `data:image/svg+xml;base64,${btoa(`<?xml version="1.0" encoding="UTF-8"?>
@@ -38,7 +46,7 @@ const rainbowColors = [
   '#4B0082', '#9400D3', '#FF1493', '#00CED1', '#FF69B4',
 ];
 
-// ─── Helper ───────────────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 function createColoredFish(img, colorHex, size) {
   let pg = createGraphics(size, size);
   pg.image(img, 0, 0, size, size);
@@ -55,137 +63,173 @@ function createColoredFish(img, colorHex, size) {
   return pg;
 }
 
+// HSB → RGB (h: 0–360, s/v: 0–100) → [r, g, b] 0–255
+function hsbToRgb(h, s, v) {
+  s /= 100; v /= 100;
+  let c = v * s;
+  let x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  let m = v - c;
+  let r, g, b;
+  if      (h < 60)  { r = c; g = x; b = 0; }
+  else if (h < 120) { r = x; g = c; b = 0; }
+  else if (h < 180) { r = 0; g = c; b = x; }
+  else if (h < 240) { r = 0; g = x; b = c; }
+  else if (h < 300) { r = x; g = 0; b = c; }
+  else              { r = c; g = 0; b = x; }
+  return [
+    Math.round((r + m) * 255),
+    Math.round((g + m) * 255),
+    Math.round((b + m) * 255),
+  ];
+}
+
+// Rebuild the rainbow fish graphics for this frame (scrolling hue sweep)
+function updateRainbowPg(direction) {
+  const SIZE = 60;
+  let pg = rainbowPg[direction];
+  pg.loadPixels();
+  pg.pixels.fill(0);
+  let t = frameCount * 6;  // 360° per second at 60 fps
+  for (let i of origPixelIdx[direction]) {
+    let px  = (i / 4) % SIZE;
+    let hue = ((px / SIZE) * 360 + t) % 360;
+    let [r, g, b] = hsbToRgb(hue, 100, 100);
+    pg.pixels[i]     = r;
+    pg.pixels[i + 1] = g;
+    pg.pixels[i + 2] = b;
+    pg.pixels[i + 3] = 255;
+  }
+  pg.updatePixels();
+  return pg;
+}
+
 // ─── NeuralNetwork ────────────────────────────────────────────────────────────
 // 5 inputs → 8 hidden (tanh) → 2 outputs (tanh)
 class NeuralNetwork {
   constructor() {
-    // Weight matrices stored as flat arrays, row-major
-    // W1: 8×5  (hidden × inputs)
-    // b1: 8
-    // W2: 2×8  (outputs × hidden)
-    // b2: 2
     this.W1 = Array.from({ length: 8 * 5 }, () => random(-1, 1));
     this.b1 = Array.from({ length: 8 },     () => random(-1, 1));
     this.W2 = Array.from({ length: 2 * 8 }, () => random(-1, 1));
     this.b2 = Array.from({ length: 2 },     () => random(-1, 1));
   }
 
-  // tanh activation
-  _tanh(x) {
-    return Math.tanh(x);
-  }
-
-  // Matrix-vector multiply + bias, then apply tanh
-  // W: flat row-major [rows×cols], x: [cols], b: [rows] → [rows]
   _layer(W, b, x, rows, cols) {
     let out = new Array(rows);
     for (let r = 0; r < rows; r++) {
       let sum = b[r];
-      for (let c = 0; c < cols; c++) {
-        sum += W[r * cols + c] * x[c];
-      }
-      out[r] = this._tanh(sum);
+      for (let c = 0; c < cols; c++) sum += W[r * cols + c] * x[c];
+      out[r] = Math.tanh(sum);
     }
     return out;
   }
 
-  // Returns [ax, ay] in range [-1, 1]
   forward(inputs) {
-    let hidden  = this._layer(this.W1, this.b1, inputs, 8, 5);
-    let outputs = this._layer(this.W2, this.b2, hidden,  2, 8);
-    return outputs;
+    return this._layer(this.W2, this.b2, this._layer(this.W1, this.b1, inputs, 8, 5), 2, 8);
   }
 
   copy() {
     let nn = new NeuralNetwork();
-    nn.W1 = this.W1.slice();
-    nn.b1 = this.b1.slice();
-    nn.W2 = this.W2.slice();
-    nn.b2 = this.b2.slice();
+    nn.W1 = this.W1.slice(); nn.b1 = this.b1.slice();
+    nn.W2 = this.W2.slice(); nn.b2 = this.b2.slice();
     return nn;
   }
 
   mutate(rate = MUTATION_RATE) {
-    const perturb = arr => arr.map(w =>
-      random(1) < rate ? w + randomGaussian(0, 0.2) : w
-    );
-    this.W1 = perturb(this.W1);
-    this.b1 = perturb(this.b1);
-    this.W2 = perturb(this.W2);
-    this.b2 = perturb(this.b2);
+    const p = arr => arr.map(w => random(1) < rate ? w + randomGaussian(0, 0.2) : w);
+    this.W1 = p(this.W1); this.b1 = p(this.b1);
+    this.W2 = p(this.W2); this.b2 = p(this.b2);
   }
 }
 
 // ─── Fish ─────────────────────────────────────────────────────────────────────
 class Fish {
   constructor(colorHex, brain) {
-    this.size        = 60;
-    // Spawn fully inside the tank (clear of waterline and bottom edge)
-    this.position    = createVector(
-      random(width),
-      random(height / 4 + this.size / 2, height - this.size / 2)
-    );
-    this.velocity    = createVector(0, 0);
-    this.acceleration = createVector(0, 0);
-    this.maxSpeed    = 3;
-    this.maxForce    = 0.4;
-    this.colorHex    = colorHex;
+    this.size       = 60;
+    this.colorHex   = colorHex;
+    this.brain      = brain || new NeuralNetwork();
+    this.fitness    = 0;
+    this.isDropping = true;
 
-    // Neuroevolution
-    this.brain   = brain || new NeuralNetwork();
-    this.fitness = 0;   // food eaten this generation
+    // Spawn above canvas so fish fall through the net into the water
+    this.position     = createVector(
+      random(this.size / 2, width - this.size / 2),
+      random(-180, -this.size)
+    );
+    this.velocity     = createVector(random(-0.5, 0.5), random(0.5, 2));
+    this.acceleration = createVector(0, 0);
+    this.maxSpeed     = 3;
+    this.maxForce     = 0.4;
   }
 
-  // Gather sensory inputs and let the brain decide steering
   think() {
-    // Find nearest food
-    let nearest  = null;
-    let minDist  = Infinity;
+    let nearest = null;
+    let minDist = Infinity;
     for (let f of foodParticles) {
       if (f.isEaten) continue;
       let d = p5.Vector.dist(this.position, f.position);
       if (d < minDist) { minDist = d; nearest = f; }
     }
 
-    let diagonal = dist(0, 0, width, height); // canvas diagonal
-
+    const diagonal = dist(0, 0, width, height);
     let inputs;
     if (nearest) {
-      let dx   = nearest.position.x - this.position.x;
-      let dy   = nearest.position.y - this.position.y;
-      let ang  = Math.atan2(dy, dx);
+      let dx  = nearest.position.x - this.position.x;
+      let dy  = nearest.position.y - this.position.y;
+      let ang = Math.atan2(dy, dx);
       inputs = [
-        Math.sin(ang),                          // 0: sin(angle to food)
-        Math.cos(ang),                          // 1: cos(angle to food)
-        constrain(minDist / diagonal, 0, 1),    // 2: normalised distance
-        this.velocity.x / this.maxSpeed,        // 3: own vx
-        this.velocity.y / this.maxSpeed,        // 4: own vy
-      ];
-    } else {
-      inputs = [
-        0, 0, 1,                                // no food: distance = max
+        Math.sin(ang),
+        Math.cos(ang),
+        constrain(minDist / diagonal, 0, 1),
         this.velocity.x / this.maxSpeed,
         this.velocity.y / this.maxSpeed,
       ];
+    } else {
+      inputs = [0, 0, 1, this.velocity.x / this.maxSpeed, this.velocity.y / this.maxSpeed];
     }
 
     let [ax, ay] = this.brain.forward(inputs);
     this.acceleration = createVector(ax * this.maxForce, ay * this.maxForce);
+
+    // Boundary avoidance — push fish away from walls before hard clamp kicks in
+    const MARGIN     = 70;
+    const waterline  = height / 4 + this.size / 2;
+    const bottomEdge = height - this.size / 2;
+
+    if (this.position.y < waterline + MARGIN) {
+      this.acceleration.y += map(this.position.y, waterline, waterline + MARGIN, this.maxForce * 2, 0);
+    }
+    if (this.position.y > bottomEdge - MARGIN) {
+      this.acceleration.y -= map(this.position.y, bottomEdge - MARGIN, bottomEdge, 0, this.maxForce * 2);
+    }
   }
 
   update() {
-    this.think();
+    if (this.isDropping) {
+      // Gravity-only fall — neural net stays dormant until fish hits water
+      this.velocity.y += 0.35;
+      this.velocity.x *= 0.97;
+      this.velocity.limit(6);
+      this.position.add(this.velocity);
 
+      const waterline = height / 4 + this.size / 2;
+      if (this.position.y >= waterline) {
+        this.isDropping = false;
+        this.velocity.set(random(-1, 1), 0);
+        this.position.y = waterline;
+      }
+      return;
+    }
+
+    this.think();
     this.velocity.add(this.acceleration);
     this.velocity.limit(this.maxSpeed);
     this.position.add(this.velocity);
 
-    // Check eating
+    // Eat food
     for (let i = foodParticles.length - 1; i >= 0; i--) {
       let f = foodParticles[i];
       if (f.isEaten) continue;
-      let d = p5.Vector.dist(this.position, f.position);
-      if (d < this.size / 2 + f.radius) {
+      if (p5.Vector.dist(this.position, f.position) < this.size / 2 + f.radius) {
         f.isEaten = true;
         this.fitness++;
       }
@@ -193,36 +237,59 @@ class Fish {
   }
 
   checkEdges() {
+    if (this.isDropping) {
+      // Keep x inside canvas while falling
+      this.position.x = constrain(this.position.x, this.size / 2, width - this.size / 2);
+      return;
+    }
 
-    if (this.position.x > width)  this.position.x = 0;
-    if (this.position.x < 0)      this.position.x = width;
+    // Left / right wrap
+    if (this.position.x > width + this.size / 2) this.position.x = -this.size / 2;
+    if (this.position.x < -this.size / 2)         this.position.x = width + this.size / 2;
 
-    // Keep fish below waterline
-    let waterline = height / 4 + this.size / 2;
+    // Hard clamp top (waterline) and bottom — zero out the offending velocity component
+    const waterline  = height / 4 + this.size / 2;
+    const bottomEdge = height - this.size / 2;
+
     if (this.position.y < waterline) {
       this.position.y = waterline;
-      this.velocity.y *= -0.5;
+      if (this.velocity.y < 0) this.velocity.y = abs(this.velocity.y) * 0.3;
     }
-    if (this.position.y > height) this.position.y = height - this.size / 2;
+    if (this.position.y > bottomEdge) {
+      this.position.y = bottomEdge;
+      if (this.velocity.y > 0) this.velocity.y = -abs(this.velocity.y) * 0.3;
+    }
   }
 
   display(isLeader) {
     push();
     translate(this.position.x, this.position.y);
 
-    // Gold ring around current leader
-    if (isLeader) {
-      noFill();
-      stroke(255, 215, 0);
-      strokeWeight(3);
-      circle(0, 0, this.size + 14);
-    }
+    let dir = this.velocity.x < -0.5 ? 'left' : 'right';
 
-    let direction    = this.velocity.x < -0.5 ? 'left' : 'right';
-    let currentFish  = coloredFishImages[this.colorHex][direction];
-    if (currentFish) {
+    if (isLeader && !this.isDropping) {
+      // ★ Rainbow rave — scrolling HSB gradient across the fish body
       imageMode(CENTER);
-      image(currentFish, 0, 0);
+      image(updateRainbowPg(dir), 0, 0);
+
+    } else if (this.isDropping) {
+      // Bright white splash as fish enters from above
+      tint(255, 255, 255, 210);
+      imageMode(CENTER);
+      image(coloredFishImages[this.colorHex][dir], 0, 0);
+      noTint();
+
+    } else if (this.fitness === 0) {
+      // Never eaten yet — desaturated / ghostly
+      tint(180, 180, 180, 170);
+      imageMode(CENTER);
+      image(coloredFishImages[this.colorHex][dir], 0, 0);
+      noTint();
+
+    } else {
+      // Normal — own colour
+      imageMode(CENTER);
+      image(coloredFishImages[this.colorHex][dir], 0, 0);
     }
 
     pop();
@@ -241,8 +308,7 @@ class FoodParticle {
   }
 
   applyForce(force) {
-    let f = p5.Vector.div(force, this.mass);
-    this.acceleration.add(f);
+    this.acceleration.add(p5.Vector.div(force, this.mass));
   }
 
   update() {
@@ -270,32 +336,24 @@ class FoodParticle {
 // ─── Liquid ───────────────────────────────────────────────────────────────────
 class Liquid {
   constructor(x, y, w, h, c) {
-    this.x = x; this.y = y;
-    this.w = w; this.h = h;
-    this.c = c;
+    this.x = x; this.y = y; this.w = w; this.h = h; this.c = c;
   }
 
-  contains(particle) {
-    let pos = particle.position;
-    return (pos.x > this.x && pos.x < this.x + this.w &&
-            pos.y > this.y && pos.y < this.y + this.h);
+  contains(p) {
+    return p.position.x > this.x && p.position.x < this.x + this.w &&
+           p.position.y > this.y && p.position.y < this.y + this.h;
   }
 
-  drag(particle) {
-    let speed         = particle.velocity.mag();
-    let dragMagnitude = this.c * speed * speed;
-    let drag          = particle.velocity.copy();
-    drag.mult(-1);
-    drag.normalize();
-    drag.mult(dragMagnitude);
+  drag(p) {
+    let speed = p.velocity.mag();
+    let drag  = p.velocity.copy().mult(-1).normalize().mult(this.c * speed * speed);
     return drag;
   }
 
   show() {
     for (let y = this.y; y < this.y + this.h; y++) {
       let inter = map(y, this.y, this.y + this.h, 0, 1);
-      let c     = lerpColor(color(135, 206, 250), color(0, 105, 148), inter);
-      stroke(c);
+      stroke(lerpColor(color(135, 206, 250), color(0, 105, 148), inter));
       line(this.x, y, this.x + this.w, y);
     }
     strokeWeight(3);
@@ -305,50 +363,75 @@ class Liquid {
   }
 }
 
+// ─── Net animation ────────────────────────────────────────────────────────────
+function drawNet() {
+  if (netY < 0) return;
+
+  netY = min(netY + NET_SPEED, height / 4);
+
+  push();
+  const CELL = 22;
+
+  // Net mesh
+  stroke(160, 120, 50, 210);
+  strokeWeight(1.2);
+  for (let y = 0; y <= netY; y += CELL) {
+    line(0, y, width, y);
+  }
+  for (let x = 0; x <= width; x += CELL) {
+    line(x, 0, x, netY);
+  }
+
+  // Knots at intersections
+  noStroke();
+  fill(120, 80, 30, 220);
+  for (let y = 0; y <= netY; y += CELL) {
+    for (let x = 0; x <= width; x += CELL) {
+      circle(x, y, 4);
+    }
+  }
+
+  // Leading-edge rope (slightly heavier)
+  stroke(120, 80, 30, 255);
+  strokeWeight(2.5);
+  line(0, netY, width, netY);
+
+  pop();
+
+  if (netY >= height / 4) netY = -1; // animation done
+}
+
 // ─── Evolution ────────────────────────────────────────────────────────────────
 function nextGeneration() {
-  // Sort descending by fitness
   fish.sort((a, b) => b.fitness - a.fitness);
 
-  // Record stats
   lastBestFitness = fish[0].fitness;
-  let total       = fish.reduce((s, f) => s + f.fitness, 0);
-  lastAvgFitness  = total / fish.length;
+  lastAvgFitness  = fish.reduce((s, f) => s + f.fitness, 0) / fish.length;
 
-  // Build fitness-proportional mating pool
   let pool = [];
   for (let f of fish) {
-    let times = f.fitness + 1; // +1 so even 0-fitness fish can reproduce
-    for (let t = 0; t < times; t++) pool.push(f);
+    for (let t = 0; t < f.fitness + 1; t++) pool.push(f);
   }
 
   let newFish = [];
-
-  // Elites carry over unchanged
   for (let i = 0; i < ELITISM; i++) {
-    let colorHex = rainbowColors[i % rainbowColors.length];
-    let elite    = new Fish(colorHex, fish[i].brain.copy());
-    newFish.push(elite);
+    newFish.push(new Fish(rainbowColors[i % rainbowColors.length], fish[i].brain.copy()));
   }
-
-  // Fill remaining slots with mutated offspring
   for (let i = ELITISM; i < fish.length; i++) {
-    let parent   = random(pool);
-    let childNN  = parent.brain.copy();
+    let childNN = random(pool).brain.copy();
     childNN.mutate();
-    let colorHex = rainbowColors[i % rainbowColors.length];
-    newFish.push(new Fish(colorHex, childNN));
+    newFish.push(new Fish(rainbowColors[i % rainbowColors.length], childNN));
   }
 
-  fish = newFish;
+  fish        = newFish;
   generation++;
-  genTimer  = 0;
-  newGenFlash = 120; // show banner for 2 seconds
+  genTimer    = 0;
+  newGenFlash = 120;
+  netY        = 0;   // drop the net
 }
 
 // ─── HUD ──────────────────────────────────────────────────────────────────────
 function drawHUD() {
-  // Panel background
   push();
   noStroke();
   fill(0, 0, 0, 120);
@@ -358,11 +441,10 @@ function drawHUD() {
   textSize(14);
   textFont('monospace');
   textAlign(LEFT, TOP);
-  text(`GEN ${generation}`,                              18, 16);
-  text(`BEST: ${lastBestFitness} eaten`,                 18, 34);
-  text(`AVG:  ${lastAvgFitness.toFixed(1)} eaten`,       18, 52);
+  text(`GEN ${generation}`,                        18, 16);
+  text(`BEST: ${lastBestFitness} eaten`,            18, 34);
+  text(`AVG:  ${lastAvgFitness.toFixed(1)} eaten`,  18, 52);
 
-  // Progress bar
   let progress = genTimer / GEN_DURATION;
   fill(50, 50, 50, 180);
   rect(18, 72, 200, 10, 3);
@@ -370,18 +452,14 @@ function drawHUD() {
   rect(18, 72, 200 * progress, 10, 3);
   pop();
 
-  // "NEW GENERATION" flash
   if (newGenFlash > 0) {
     let alpha = map(newGenFlash, 120, 0, 255, 0);
     push();
     textAlign(CENTER, CENTER);
     textSize(36);
     textFont('monospace');
-
-    // Shadow
     fill(0, 0, 0, alpha * 0.6);
     text('NEW GENERATION', width / 2 + 2, height / 2 + 2);
-
     fill(255, 230, 0, alpha);
     text('NEW GENERATION', width / 2, height / 2);
     pop();
@@ -398,6 +476,7 @@ function preload() {
 function setup() {
   createCanvas(800, 600);
 
+  // Solid-colour fish images
   for (let colorHex of rainbowColors) {
     coloredFishImages[colorHex] = {
       left:  createColoredFish(fishLeftImg,  colorHex, 60),
@@ -405,12 +484,28 @@ function setup() {
     };
   }
 
+  // Pre-compute opaque pixel indices from the original (black) SVG sprites
+  // and allocate reusable rainbow graphics objects
+  for (let [dir, img] of [['left', fishLeftImg], ['right', fishRightImg]]) {
+    let pg = createGraphics(60, 60);
+    pg.image(img, 0, 0, 60, 60);
+    pg.loadPixels();
+    let idx = [];
+    for (let i = 0; i < pg.pixels.length; i += 4) {
+      if (pg.pixels[i + 3] > 0) idx.push(i);
+    }
+    origPixelIdx[dir] = idx;
+    pg.remove();
+    rainbowPg[dir] = createGraphics(60, 60);
+  }
+
+  // Spawn fish above water — they fall through the net on load
   for (let i = 0; i < 10; i++) {
-    let colorHex = rainbowColors[i % rainbowColors.length];
-    fish.push(new Fish(colorHex));
+    fish.push(new Fish(rainbowColors[i % rainbowColors.length]));
   }
 
   liquid = new Liquid(0, height / 4, width, height * 3 / 4, 0.1);
+  netY   = 0;  // fire the net drop right away
 }
 
 function draw() {
@@ -419,44 +514,35 @@ function draw() {
 
   genTimer++;
 
-  // Auto-spawn food at the waterline
   if (genTimer % FOOD_RATE === 0) {
-    let x = random(width);
-    foodParticles.push(new FoodParticle(x, height / 4));
+    foodParticles.push(new FoodParticle(random(width), height / 4));
   }
 
-  // Advance to next generation
-  if (genTimer >= GEN_DURATION) {
-    nextGeneration();
-  }
+  if (genTimer >= GEN_DURATION) nextGeneration();
 
-  // Find current leader (most food, still alive)
-  let leaderIdx = -1;
-  let leaderFitness = -1;
+  // Leader = non-dropping fish with highest fitness
+  let leaderIdx = -1, leaderFitness = -1;
   for (let i = 0; i < fish.length; i++) {
-    if (fish[i].fitness > leaderFitness) {
+    if (!fish[i].isDropping && fish[i].fitness > leaderFitness) {
       leaderFitness = fish[i].fitness;
       leaderIdx     = i;
     }
   }
 
-  // Update + display fish
   for (let i = 0; i < fish.length; i++) {
     fish[i].update();
     fish[i].checkEdges();
     fish[i].display(i === leaderIdx);
   }
 
-  // Update + display food
+  // Net draws on top of fish so they appear to pass through it
+  drawNet();
+
   for (let i = foodParticles.length - 1; i >= 0; i--) {
     let food = foodParticles[i];
     if (food.isEaten) { foodParticles.splice(i, 1); continue; }
-
-    let gravity = createVector(0, 0.1 * food.mass);
-    food.applyForce(gravity);
-    if (liquid.contains(food)) {
-      food.applyForce(liquid.drag(food));
-    }
+    food.applyForce(createVector(0, 0.1 * food.mass));
+    if (liquid.contains(food)) food.applyForce(liquid.drag(food));
     food.update();
     food.checkEdges();
     food.display();
@@ -465,7 +551,6 @@ function draw() {
   drawHUD();
 }
 
-// Click to drop extra food (fun interaction)
 function mouseClicked() {
   if (mouseX > 0 && mouseX < width && mouseY > 0 && mouseY < height) {
     foodParticles.push(new FoodParticle(mouseX, mouseY));
