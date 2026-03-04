@@ -153,6 +153,7 @@ class Fish {
     this.ghrelin    = random(0.3, 0.6); // start moderately hungry
     this.leptin     = 0;
     this.facingDir  = 'right';
+    this.noiseOffset = random(10000); // unique noise seed per fish
     // Spawn above the screen — falls through net into water
     this.position     = createVector(
       random(SX + this.size/2, SX + SW - this.size/2),
@@ -185,6 +186,11 @@ class Fish {
     let [ax, ay] = this.brain.forward(inputs);
     let target = createVector(ax * this.maxForce, ay * this.maxForce);
     this.acceleration.lerp(target, 0.08); // smooth, gradual steering
+
+    // Perlin noise wander — slow-drifting angle gives long organic swim arcs
+    let wanderAngle = map(noise(this.noiseOffset + frameCount * 0.004), 0, 1, -PI, PI);
+    let wander = p5.Vector.fromAngle(wanderAngle).mult(this.maxForce * 0.7);
+    this.acceleration.add(wander);
 
     // Boundary avoidance
     const M = 60;
