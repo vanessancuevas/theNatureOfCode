@@ -2,11 +2,11 @@
 // Simulation lives inside a vintage CRT monitor frame.
 
 // ─── Screen / canvas layout ───────────────────────────────────────────────────
-// Canvas: 1000 × 980.  Computer image: 980×980 drawn at x=10, y=0.
+// Canvas: 1000 × 980.  Computer image: 980×980 drawn at x=10, y=20.
 // Screen hole measured from alpha channel of computer.png (246,192)→(783,592)
-// at 980/1024 = 0.957 scale:
+// at 980/1024 = 0.957 scale, +20px vertical offset:
 const SX   = 245;   // screen left edge
-const SY   = 184;   // screen top edge
+const SY   = 204;   // screen top edge
 const SW   = 514;   // screen width
 const SH   = 383;   // screen height
 const SR   = 40;    // CRT rounded-corner radius
@@ -477,7 +477,7 @@ function draw() {
 
   // Computer frame on top — PNG alpha channel handles compositing naturally:
   // transparent screen hole shows simulation, opaque bezel covers edges
-  image(computerImg, 10, 0, 980, 980);
+  image(computerImg, 10, 20, 980, 980);
 }
 
 function mouseClicked() {
