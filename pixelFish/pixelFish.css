@@ -22,4 +22,5 @@ main {
 
 canvas {
   cursor: pointer;
+  margin-top: -400px;
 }
