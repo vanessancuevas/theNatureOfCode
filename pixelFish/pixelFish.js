@@ -152,6 +152,7 @@ class Fish {
     this.isDropping = true;
     this.ghrelin    = random(0.3, 0.6); // start moderately hungry
     this.leptin     = 0;
+    this.facingDir  = 'right';
     // Spawn above the screen — falls through net into water
     this.position     = createVector(
       random(SX + this.size/2, SX + SW - this.size/2),
@@ -270,6 +271,10 @@ class Fish {
     this.velocity.limit(this.maxSpeed);
     this.position.add(this.velocity);
 
+    // Only flip direction when velocity is clearly sustained — avoids jitter
+    if (this.velocity.x < -0.35)      this.facingDir = 'left';
+    else if (this.velocity.x > 0.35)  this.facingDir = 'right';
+
     // Eat only when hungry (ghrelin above threshold)
     for (let i = foodParticles.length - 1; i >= 0; i--) {
       let f = foodParticles[i];
@@ -307,42 +312,40 @@ class Fish {
     // Belly-up float: upside down, fading out
     if (this.isDying) {
       let alpha = this.dyingTimer > 180 ? map(this.dyingTimer, 180, 240, 180, 0) : 180;
-      let dir = this.position.x < SX + SW / 2 ? 'right' : 'left';
       scale(1, -1); // flip upside down
       tint(160, 160, 160, alpha);
       imageMode(CENTER);
-      image(coloredFishImages[this.colorHex][dir], 0, 0, this.size, this.size);
+      image(coloredFishImages[this.colorHex][this.facingDir], 0, 0, this.size, this.size);
       noTint();
       pop();
       return;
     }
-
-    let dir = this.velocity.x < -0.5 ? 'left' : 'right';
 
     // Fade out in the last 400 frames of life
     let alpha = 255;
     if (!this.isDropping && this.age > this.lifespan - 400)
       alpha = map(this.age, this.lifespan - 400, this.lifespan, 255, 0);
 
+    let d = this.facingDir;
     if (isLeader && !this.isDropping) {
       tint(255, alpha);
       imageMode(CENTER);
-      image(updateRainbowPg(dir), 0, 0, this.size, this.size);
+      image(updateRainbowPg(d), 0, 0, this.size, this.size);
       noTint();
     } else if (this.isDropping) {
       tint(255, 255, 255, 210);
       imageMode(CENTER);
-      image(coloredFishImages[this.colorHex][dir], 0, 0, this.size, this.size);
+      image(coloredFishImages[this.colorHex][d], 0, 0, this.size, this.size);
       noTint();
     } else if (this.fitness === 0) {
       tint(180, 180, 180, alpha * 0.67);
       imageMode(CENTER);
-      image(coloredFishImages[this.colorHex][dir], 0, 0, this.size, this.size);
+      image(coloredFishImages[this.colorHex][d], 0, 0, this.size, this.size);
       noTint();
     } else {
       tint(255, alpha);
       imageMode(CENTER);
-      image(coloredFishImages[this.colorHex][dir], 0, 0, this.size, this.size);
+      image(coloredFishImages[this.colorHex][d], 0, 0, this.size, this.size);
       noTint();
     }
 
