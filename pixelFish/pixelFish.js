@@ -38,6 +38,14 @@ const LIFESPAN_MAX  = 2400;   // frames a fish can live (max)
 const SPAWN_COUNT   = 7;      // new fish dropped per wave
 const MIN_FISH      = 3;      // trigger new wave when live fish fall to this
 
+// Hormone constants
+const GHRELIN_RATE  = 0.0005; // hunger builds per frame
+const GHRELIN_DECAY = 0.35;   // drops sharply when fish eats
+const LEPTIN_RISE   = 0.28;   // leptin spike per food item eaten
+const LEPTIN_DECAY  = 0.0003; // metabolizes per frame
+const LETHAL_LEPTIN = 1.0;    // overeating death threshold
+const HUNGER_THRESH = 0.25;   // min ghrelin needed to eat
+
 // ─── Fish SVG assets (embedded base64) ───────────────────────────────────────
 const fishLeftSVG = `data:image/svg+xml;base64,${btoa(`<?xml version="1.0" encoding="UTF-8"?>
 <svg id="Layer_2" data-name="Layer 2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 309.84382 309.84375">
@@ -102,7 +110,7 @@ function updateRainbowPg(direction) {
 // ─── NeuralNetwork ────────────────────────────────────────────────────────────
 class NeuralNetwork {
   constructor() {
-    this.W1 = Array.from({ length: 40 }, () => random(-1, 1));
+    this.W1 = Array.from({ length: 56 }, () => random(-1, 1)); // 8 hidden × 7 inputs
     this.b1 = Array.from({ length: 8  }, () => random(-1, 1));
     this.W2 = Array.from({ length: 16 }, () => random(-1, 1));
     this.b2 = Array.from({ length: 2  }, () => random(-1, 1));
@@ -115,7 +123,7 @@ class NeuralNetwork {
     });
   }
   forward(inputs) {
-    return this._layer(this.W2, this.b2, this._layer(this.W1, this.b1, inputs, 8, 5), 2, 8);
+    return this._layer(this.W2, this.b2, this._layer(this.W1, this.b1, inputs, 8, 7), 2, 8);
   }
   copy() {
     let nn = new NeuralNetwork();
@@ -140,6 +148,8 @@ class Fish {
     this.lifespan   = round(random(LIFESPAN_MIN, LIFESPAN_MAX));
     this.isDead     = false;
     this.isDropping = true;
+    this.ghrelin    = random(0.3, 0.6); // start moderately hungry
+    this.leptin     = 0;
     // Spawn above the screen — falls through net into water
     this.position     = createVector(
       random(SX + this.size/2, SX + SW - this.size/2),
@@ -163,9 +173,11 @@ class Fish {
     if (nearest) {
       let ang = Math.atan2(nearest.position.y - this.position.y, nearest.position.x - this.position.x);
       inputs = [Math.sin(ang), Math.cos(ang), constrain(minDist/diag,0,1),
-                this.velocity.x/this.maxSpeed, this.velocity.y/this.maxSpeed];
+                this.velocity.x/this.maxSpeed, this.velocity.y/this.maxSpeed,
+                this.ghrelin, this.leptin];
     } else {
-      inputs = [0, 0, 1, this.velocity.x/this.maxSpeed, this.velocity.y/this.maxSpeed];
+      inputs = [0, 0, 1, this.velocity.x/this.maxSpeed, this.velocity.y/this.maxSpeed,
+                this.ghrelin, this.leptin];
     }
     let [ax, ay] = this.brain.forward(inputs);
     this.acceleration = createVector(ax * this.maxForce, ay * this.maxForce);
@@ -229,18 +241,30 @@ class Fish {
     }
     this.age++;
     if (this.age >= this.lifespan) { this.isDead = true; return; }
+
+    // Hormone tick
+    this.ghrelin = min(this.ghrelin + GHRELIN_RATE, 1.0);
+    this.leptin  = max(this.leptin  - LEPTIN_DECAY,  0.0);
+    if (this.leptin >= LETHAL_LEPTIN) { this.isDead = true; return; } // overate
+
     this.think();
     this.flock(fish);
     this.velocity.add(this.acceleration);
     this.velocity.limit(this.maxSpeed);
     this.position.add(this.velocity);
 
+    // Eat only when hungry (ghrelin above threshold)
     for (let i = foodParticles.length - 1; i >= 0; i--) {
       let f = foodParticles[i];
       if (f.isEaten) continue;
       if (p5.Vector.dist(this.position, f.position) < this.size/2 + f.radius) {
-        f.isEaten = true;
-        this.fitness++;
+        if (this.ghrelin >= HUNGER_THRESH) {
+          f.isEaten = true;
+          this.fitness++;
+          this.ghrelin = max(this.ghrelin - GHRELIN_DECAY, 0);
+          this.leptin  = min(this.leptin  + LEPTIN_RISE, 1.5); // can exceed 1.0 → lethal
+        }
+        // If not hungry, fish bumps into food but ignores it (scopes it out)
       }
     }
   }
@@ -289,6 +313,19 @@ class Fish {
       imageMode(CENTER);
       image(coloredFishImages[this.colorHex][dir], 0, 0, this.size, this.size);
       noTint();
+    }
+
+    // Leptin fullness indicator — warm glow ring when getting stuffed
+    if (!this.isDropping && this.leptin > 0.4) {
+      let lerpAmt = map(this.leptin, 0.4, LETHAL_LEPTIN, 0, 1);
+      let glowR = lerp(255, 255, lerpAmt);
+      let glowG = lerp(200,   0, lerpAmt);
+      let glowB = lerp(  0,   0, lerpAmt);
+      let glowA = lerp( 60, 200, lerpAmt);
+      noFill(); strokeWeight(3);
+      stroke(glowR, glowG, glowB, glowA);
+      circle(0, 0, this.size + 10);
+      noStroke();
     }
     pop();
   }
