@@ -459,7 +459,7 @@ class Liquid {
     return p.velocity.copy().mult(-1).normalize().mult(this.c * s * s);
   }
   show() {
-    const PAD = 20; // overdraw past screen edges to cover max shake offset
+    const PAD = 50; // overdraw past screen edges to cover max shake offset
     for (let y = this.y; y < this.y + this.h; y++) {
       let t = map(y, this.y, this.y+this.h, 0, 1);
       stroke(lerpColor(color(135,206,250), color(0,105,148), t));
