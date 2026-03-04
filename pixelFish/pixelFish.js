@@ -7,7 +7,7 @@
 // at 980/1024 = 0.957 scale, +20px vertical offset:
 const SX   = 243;   // screen left edge
 const SY   = 204;   // screen top edge
-const SW   = 514;   // screen width
+const SW   = 522;   // screen width
 const SH   = 399;   // screen height
 const SR   = 40;    // CRT rounded-corner radius
 const WLINE = SY + 25;   // waterline (thin air strip at top, rest is water)
