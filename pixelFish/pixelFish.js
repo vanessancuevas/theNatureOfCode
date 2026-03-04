@@ -183,23 +183,21 @@ class Fish {
       inputs = [0, 0, 1, this.velocity.x/this.maxSpeed, this.velocity.y/this.maxSpeed,
                 this.ghrelin, this.leptin];
     }
-    let [ax, ay] = this.brain.forward(inputs);
-    let target = createVector(ax * this.maxForce, ay * this.maxForce);
-    this.acceleration.lerp(target, 0.08); // smooth, gradual steering
-
-    // Perlin noise wander — scales back when hungry and food is close
-    let wanderScale = (nearest && this.ghrelin >= HUNGER_THRESH)
-      ? map(minDist, 0, diag * 0.4, 0.05, 1.0)
-      : 1.0;
+    // Perlin noise wander — gentle organic drift when not seeking
     let wanderAngle = map(noise(this.noiseOffset + frameCount * 0.004), 0, 1, -PI, PI);
-    this.acceleration.add(p5.Vector.fromAngle(wanderAngle).mult(this.maxForce * 0.7 * wanderScale));
+    let wanderForce = p5.Vector.fromAngle(wanderAngle).mult(this.maxForce * 0.5);
+    this.acceleration.add(wanderForce);
 
-    // Ghrelin-driven food seek — hunger directly orients fish toward nearest food
+    // Reynolds seek toward food when hungry — dominates wander
     if (nearest && this.ghrelin >= HUNGER_THRESH) {
-      let seek = p5.Vector.sub(nearest.position, this.position)
-                           .setMag(this.maxForce * this.ghrelin * 1.5);
-      this.acceleration.add(seek);
+      let desired = p5.Vector.sub(nearest.position, this.position).setMag(this.maxSpeed);
+      let steer   = p5.Vector.sub(desired, this.velocity).limit(this.maxForce * 4);
+      this.acceleration.add(steer);
     }
+
+    // NN refines steering on top (small contribution — evolves over generations)
+    let [ax, ay] = this.brain.forward(inputs);
+    this.acceleration.add(createVector(ax, ay).mult(this.maxForce * 0.3));
 
     // Boundary avoidance
     const M = 60;
