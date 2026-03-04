@@ -361,9 +361,10 @@ class Fish {
       this.position.x = constrain(this.position.x, SX + this.size/2, SX + SW - this.size/2);
       return;
     }
-    // Wrap left/right within screen
-    if (this.position.x > SX + SW + this.size/2) this.position.x = SX - this.size/2;
-    if (this.position.x < SX - this.size/2)       this.position.x = SX + SW + this.size/2;
+    // Bounce left/right within screen
+    const lft = SX + this.size/2, rgt = SX + SW - this.size/2;
+    if (this.position.x < lft) { this.position.x = lft; if (this.velocity.x < 0) this.velocity.x = abs(this.velocity.x)*0.3; }
+    if (this.position.x > rgt) { this.position.x = rgt; if (this.velocity.x > 0) this.velocity.x = -abs(this.velocity.x)*0.3; }
     // Bounce top/bottom
     const top = WLINE, bot = SBOT - this.size/2;
     if (this.position.y < top) { this.position.y = top; if (this.velocity.y < 0) this.velocity.y = abs(this.velocity.y)*0.3; }
