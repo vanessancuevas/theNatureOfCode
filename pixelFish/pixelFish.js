@@ -203,6 +203,66 @@ class Fish {
     }
   }
 
+  // Boids flocking: separation + alignment + cohesion
+  // Adds directly onto this.acceleration (call after think())
+  flock(others) {
+    const SEP_R   = 65;   // hard personal space — stronger than fish radius
+    const FLOCK_R = 140;  // neighbourhood for alignment / cohesion
+
+    let sep = createVector(0, 0), sepN = 0;
+    let ali = createVector(0, 0), aliN = 0;
+    let coh = createVector(0, 0), cohN = 0;
+
+    for (let other of others) {
+      if (other === this || other.isDropping) continue;
+      let d = p5.Vector.dist(this.position, other.position);
+
+      // Separation — steer away, weighted by proximity
+      if (d < SEP_R && d > 0) {
+        let away = p5.Vector.sub(this.position, other.position);
+        away.div(d);        // closer = stronger
+        sep.add(away);
+        sepN++;
+      }
+
+      // Alignment + cohesion within neighbourhood
+      if (d < FLOCK_R) {
+        ali.add(other.velocity);
+        coh.add(other.position);
+        aliN++;
+        cohN++;
+      }
+    }
+
+    // Separation — strongest: fish must not overlap
+    if (sepN > 0) {
+      sep.div(sepN);
+      sep.setMag(this.maxSpeed);
+      sep.sub(this.velocity);
+      sep.limit(this.maxForce * 2.0);
+      this.acceleration.add(sep);
+    }
+
+    // Alignment — match heading of neighbours
+    if (aliN > 0) {
+      ali.div(aliN);
+      ali.setMag(this.maxSpeed);
+      ali.sub(this.velocity);
+      ali.limit(this.maxForce * 0.6);
+      this.acceleration.add(ali);
+    }
+
+    // Cohesion — drift gently toward centre of mass
+    if (cohN > 0) {
+      coh.div(cohN);
+      let desired = p5.Vector.sub(coh, this.position);
+      desired.setMag(this.maxSpeed);
+      desired.sub(this.velocity);
+      desired.limit(this.maxForce * 0.3);
+      this.acceleration.add(desired);
+    }
+  }
+
   update() {
     if (this.isDropping) {
       // Gravity-only fall — neural net stays dormant until fish hits water
@@ -220,7 +280,8 @@ class Fish {
       return;
     }
 
-    this.think();
+    this.think();         // neural net + boundary avoidance → sets acceleration
+    this.flock(fish);     // separation / alignment / cohesion → adds to acceleration
     this.velocity.add(this.acceleration);
     this.velocity.limit(this.maxSpeed);
     this.position.add(this.velocity);
