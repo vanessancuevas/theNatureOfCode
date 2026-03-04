@@ -115,15 +115,42 @@ class NeuralNetwork {
     this.W2 = Array.from({ length: 16 }, () => random(-1, 1));
     this.b2 = Array.from({ length: 2  }, () => random(-1, 1));
   }
-  _layer(W, b, x, rows, cols) {
-    return Array.from({ length: rows }, (_, r) => {
-      let s = b[r];
-      for (let c = 0; c < cols; c++) s += W[r*cols+c] * x[c];
+  forward(inputs) {
+    this._x = inputs;
+    this._h = Array.from({ length: 8 }, (_, r) => {
+      let s = this.b1[r];
+      for (let c = 0; c < 7; c++) s += this.W1[r*7+c] * inputs[c];
       return Math.tanh(s);
     });
+    this._y = Array.from({ length: 2 }, (_, r) => {
+      let s = this.b2[r];
+      for (let c = 0; c < 8; c++) s += this.W2[r*8+c] * this._h[c];
+      return Math.tanh(s);
+    });
+    return [this._y[0], this._y[1]];
   }
-  forward(inputs) {
-    return this._layer(this.W2, this.b2, this._layer(this.W1, this.b1, inputs, 8, 7), 2, 8);
+  // Backpropagation — MSE loss, tanh derivative: d/dx tanh = 1 - tanh²
+  backward(targets, lr = 0.01) {
+    if (!this._x) return;
+    // Output layer deltas
+    const d2 = this._y.map((y, i) => (y - targets[i]) * (1 - y * y));
+    for (let r = 0; r < 2; r++) {
+      this.b2[r] -= lr * d2[r];
+      for (let c = 0; c < 8; c++)
+        this.W2[r*8+c] -= lr * d2[r] * this._h[c];
+    }
+    // Hidden layer deltas
+    const dh = Array.from({ length: 8 }, (_, c) => {
+      let s = 0;
+      for (let r = 0; r < 2; r++) s += d2[r] * this.W2[r*8+c];
+      return s;
+    });
+    const d1 = this._h.map((h, i) => dh[i] * (1 - h * h));
+    for (let r = 0; r < 8; r++) {
+      this.b1[r] -= lr * d1[r];
+      for (let c = 0; c < 7; c++)
+        this.W1[r*7+c] -= lr * d1[r] * this._x[c];
+    }
   }
   copy() {
     let nn = new NeuralNetwork();
@@ -183,21 +210,25 @@ class Fish {
       inputs = [0, 0, 1, this.velocity.x/this.maxSpeed, this.velocity.y/this.maxSpeed,
                 this.ghrelin, this.leptin];
     }
-    // Perlin noise wander — offset from current heading so no directional bias
+    // Perlin noise wander — baseline graceful movement
     let wanderOffset = map(noise(this.noiseOffset + frameCount * 0.004), 0, 1, -0.6, 0.6);
     let wanderAngle  = this.velocity.heading() + wanderOffset;
-    this.acceleration.add(p5.Vector.fromAngle(wanderAngle).mult(this.maxForce * 0.5));
+    this.acceleration.add(p5.Vector.fromAngle(wanderAngle).mult(this.maxForce * 0.4));
 
-    // Reynolds seek toward food when hungry
-    if (nearest && this.ghrelin >= HUNGER_THRESH) {
-      let desired = p5.Vector.sub(nearest.position, this.position).setMag(this.maxSpeed);
-      let steer   = p5.Vector.sub(desired, this.velocity).limit(this.maxForce * 2);
-      this.acceleration.add(steer);
-    }
-
-    // NN refines steering on top (small contribution — evolves over generations)
+    // NN drives steering — learns via backprop within its lifetime
     let [ax, ay] = this.brain.forward(inputs);
-    this.acceleration.add(createVector(ax, ay).mult(this.maxForce * 0.3));
+    this.acceleration.add(createVector(ax, ay).mult(this.maxForce * 1.5));
+
+    // Backprop: teach NN to steer toward food when hungry
+    if (nearest && this.ghrelin >= HUNGER_THRESH) {
+      let toFood = p5.Vector.sub(nearest.position, this.position);
+      let d = toFood.mag();
+      this.brain.backward([toFood.x / d, toFood.y / d], 0.01);
+    }
+    // Teach NN to ease off when dangerously full
+    if (this.leptin > 0.7) {
+      this.brain.backward([0, 0], 0.005);
+    }
 
     // Boundary avoidance
     const M = 60;
