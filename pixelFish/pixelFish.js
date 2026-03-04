@@ -5,7 +5,7 @@
 // Canvas: 1000 × 980.  Computer image: 980×980 drawn at x=10, y=20.
 // Screen hole measured from alpha channel of computer.png (246,192)→(783,592)
 // at 980/1024 = 0.957 scale, +20px vertical offset:
-const SX   = 257;   // screen left edge
+const SX   = 247;   // screen left edge
 const SY   = 204;   // screen top edge
 const SW   = 514;   // screen width
 const SH   = 399;   // screen height
