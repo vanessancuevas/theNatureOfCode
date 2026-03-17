@@ -80,13 +80,13 @@ function windowResized() {
     textLayer.textStyle(BOLD); // ADDED: Make text bold
     textLayer.textSize(fontsize);
 
-    // Measure text width to keep it fully within canvas
     let txt = 'can you find me?';
-    let txtWidth = textLayer.textWidth(txt);
+    let txtWidth  = textLayer.textWidth(txt);
+    let txtHeight = fontsize;
 
-   // Random position that keeps text fully visible
-    let startX = random(10, width - txtWidth - 10);
-    let startY = random(50, height - 50);
+    // Keep full string on screen with padding equal to text dimensions
+    let startX = random(10, width  - txtWidth  - 10);
+    let startY = random(txtHeight + 10, height - 10);
     
    // Draw white text as an ordered sentence
     textLayer.fill(255, 255, 255);
