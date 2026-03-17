@@ -85,8 +85,8 @@ function windowResized() {
     let txtWidth = textLayer.textWidth(txt);
 
    // Random position that keeps text fully visible
-    let startX = random(10, 500 - txtWidth - 10);  // Account for text width
-    let startY = random(50, 470);  // Account for text height
+    let startX = random(10, width - txtWidth - 10);
+    let startY = random(50, height - 50);
     
    // Draw white text as an ordered sentence
     textLayer.fill(255, 255, 255);
