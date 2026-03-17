@@ -361,9 +361,10 @@ class Fish {
       this.position.x = constrain(this.position.x, SX + this.size/2, SX + SW - this.size/2);
       return;
     }
-    // Wrap left/right within screen
-    if (this.position.x > SX + SW + this.size/2) this.position.x = SX - this.size/2;
-    if (this.position.x < SX - this.size/2)       this.position.x = SX + SW + this.size/2;
+    // Bounce left/right within screen
+    const lft = SX + this.size/2, rgt = SX + SW - this.size/2;
+    if (this.position.x < lft) { this.position.x = lft; if (this.velocity.x < 0) this.velocity.x = abs(this.velocity.x)*0.3; }
+    if (this.position.x > rgt) { this.position.x = rgt; if (this.velocity.x > 0) this.velocity.x = -abs(this.velocity.x)*0.3; }
     // Bounce top/bottom
     const top = WLINE, bot = SBOT - this.size/2;
     if (this.position.y < top) { this.position.y = top; if (this.velocity.y < 0) this.velocity.y = abs(this.velocity.y)*0.3; }
@@ -459,18 +460,19 @@ class Liquid {
     return p.velocity.copy().mult(-1).normalize().mult(this.c * s * s);
   }
   show() {
+    const PAD = 50; // overdraw past screen edges to cover max shake offset
     for (let y = this.y; y < this.y + this.h; y++) {
       let t = map(y, this.y, this.y+this.h, 0, 1);
       stroke(lerpColor(color(135,206,250), color(0,105,148), t));
-      line(this.x, y, this.x+this.w, y);
+      line(this.x - PAD, y, this.x+this.w + PAD, y);
     }
     // Waterline
     strokeWeight(2); stroke(0, 105, 148);
-    line(this.x, this.y, this.x+this.w, this.y);
+    line(this.x - PAD, this.y, this.x+this.w + PAD, this.y);
     strokeWeight(1);
     // Air zone (above waterline, inside screen)
     noStroke(); fill(200, 230, 255, 60);
-    rect(SX, SY, SW, WLINE - SY);
+    rect(SX - PAD, SY, SW + PAD * 2, WLINE - SY);
   }
 }
 
@@ -557,12 +559,6 @@ function setup() {
 function draw() {
   background(255);
 
-  // Auto-spawn food at random depths so fish spread through the tank
-  if (frameCount % FOOD_RATE === 0)
-    foodParticles.push(new FoodParticle(
-      random(SX + 10, SX + SW - 10),
-      random(WLINE, SBOT - 20)
-    ));
 
   // Update all fish
   for (let f of fish) { f.update(); f.checkEdges(); }
