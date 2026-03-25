@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="color-gamut" content="p3">
+<title>Neural Jellyfish — Step 4b</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { background:#000; overflow:hidden; touch-action:none; }
+  canvas { display:block; background:#000; }
+  #perf {
+    position:fixed; bottom:12px; right:12px;
+    font-family:'Courier New',monospace; font-size:10px;
+    color:rgba(0,200,255,0.3); letter-spacing:0.06em;
+    text-transform:uppercase; pointer-events:none;
+  }
+  #hint {
+    position:fixed; bottom:12px; left:12px;
+    font-family:'Courier New',monospace; font-size:10px;
+    color:rgba(0,200,255,0.2); letter-spacing:0.06em;
+    text-transform:uppercase; pointer-events:none;
+    transition: opacity 3s;
+  }
+  #state {
+    position:fixed; top:16px; left:16px;
+    font-family:'Courier New',monospace; font-size:10px;
+    color:rgba(0,200,255,0.25); letter-spacing:0.1em;
+    text-transform:uppercase; pointer-events:none;
+  }
+</style>
+</head>
+<body>
+<div id="perf">fps: —</div>
+<div id="hint">tap to startle</div>
+<div id="state">dormant</div>
+<script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.js"></script>
+<script src="jellyfish-step4b.js"></script>
+</body>
+</html>
