@@ -3,58 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pixel Fish - Nature of Code</title>
   <link rel="stylesheet" href="pixelFish.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
-  <style>
-    #legend {
-      position: fixed;
-      top: 16px;
-      left: 16px;
-      background: #2d4a2e;
-      border: 1px solid #0f2500;
-      border-radius: 2px;
-      padding: 10px 12px;
-      font-family: monospace;
-      font-size: 11px;
-      color: #9BBC0F;
-      line-height: 1.9;
-      pointer-events: none;
-      z-index: 10;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-    }
-    .legend-title {
-      font-size: 9px;
-      letter-spacing: 0.18em;
-      color: #8BAC0F;
-      text-transform: uppercase;
-      margin-bottom: 4px;
-    }
-    .legend-row { display: flex; align-items: center; gap: 8px; }
-    .legend-swatch {
-      width: 12px; height: 12px;
-      border-radius: 1px;
-      flex-shrink: 0;
-    }
-    .swatch-rainbow {
-      background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
-    }
-    .swatch-compete  { background: #ff5050; }
-    .swatch-divert   { background: #50a0ff; }
-    .swatch-active   { background: #ffdc64; }
-    .swatch-nokills  { background: #aaa; }
-  </style>
 </head>
 <body>
-  <div id="legend">
-    <div class="legend-title">// Status</div>
-    <div class="legend-row"><div class="legend-swatch swatch-rainbow"></div> Leader</div>
-    <div class="legend-row"><div class="legend-swatch swatch-compete"></div> Competing</div>
-    <div class="legend-row"><div class="legend-swatch swatch-divert"></div> Diverting</div>
-    <div class="legend-row"><div class="legend-swatch swatch-active"></div> Active</div>
-    <div class="legend-row"><div class="legend-swatch swatch-nokills"></div> No kills</div>
-  </div>
-  <script src="pixelFish.js?v=4"></script>
+  <script src="pixelFish.js"></script>
 </body>
 </html>

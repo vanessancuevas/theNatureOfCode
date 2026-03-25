@@ -4,25 +4,15 @@
   box-sizing: border-box;
 }
 
-body {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
+html, body {
+  width: 100%;
+  height: 100%;
+  background: #000;
   overflow: hidden;
-  background: #0d0d0d;
-  font-family: monospace;
-}
-
-main {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
 }
 
 canvas {
+  display: block;
   cursor: pointer;
-  margin-top: -132px;
   image-rendering: pixelated;
 }
