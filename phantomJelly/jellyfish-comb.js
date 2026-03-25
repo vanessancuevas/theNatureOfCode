@@ -169,17 +169,6 @@ function drawInternalOrgan() {
     endShape();
   }
 
-  strokeWeight(2);
-  stroke(15, 70, 100, 60);
-  noFill();
-  beginShape();
-  for (let i = 0; i <= 40; i++) {
-    let theta   = map(i, 0, 40, 0.1, Math.PI - 0.1);
-    let y       = 210 * 0.85 * Math.cos(theta) * 1.3 * scale;
-    let flicker = 2 * Math.sin(theta * 8 + t * 3);
-    vertex(flicker, y, 0);
-  }
-  endShape();
   noStroke();
   pop();
 }
