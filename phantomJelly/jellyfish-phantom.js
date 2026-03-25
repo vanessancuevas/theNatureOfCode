@@ -41,6 +41,8 @@ class Jellyfish {
     this.speed = 0;
     this.cycle = random(TWO_PI);
     this.baseR = random(7.5, 11);
+    this.startleFrames = 0;
+    this.colorBlend = 0; // 0 = gray signals, 1 = vivid red signals
 
     this.nodes = [];
     this.edges = [];
@@ -127,15 +129,21 @@ class Jellyfish {
   }
 
   update() {
-    this.cycle += 0.02;
+    let startled = this.startleFrames > 0;
+    if (startled) this.startleFrames--;
+    this.colorBlend = startled ? 1.0 : lerp(this.colorBlend, 0, 0.008);
+
+    this.cycle += startled ? 0.07 : 0.012;
     let phase = (this.cycle % TWO_PI) / TWO_PI;
     let pulse = 0;
     if (phase < 0.4) {
       pulse = sin((phase * PI) / 0.4);
     }
 
-    let targetSpeed = map(pulse, 0, 1, 0.5, 3.5);
-    this.speed = lerp(this.speed, targetSpeed, 0.1);
+    let targetSpeed = startled
+      ? map(pulse, 0, 1, 1.0, 7.0)
+      : map(pulse, 0, 1, 0.1, 1.8);
+    this.speed = lerp(this.speed, targetSpeed, 0.08);
 
     let inputs = [
       this.pos.x / width,
@@ -293,7 +301,7 @@ class Jellyfish {
   render() {
     blendMode(BLEND);
     noStroke();
-    fill(25, 5, 10, 230);
+    fill(350, 100, 50, 220);  // vivid deep red tentacle fill
     for (let t of this.tentacles) {
       beginShape(TRIANGLE_STRIP);
       for (let j = 0; j < t.nodes.length; j++) {
@@ -325,7 +333,7 @@ class Jellyfish {
     }
 
     noFill();
-    stroke(60, 10, 20, 180);
+    stroke(350, 100, 75, 180);  // vivid red tentacle stroke
     strokeWeight(1);
     for (let t of this.tentacles) {
       beginShape();
@@ -341,7 +349,7 @@ class Jellyfish {
     for (let t of this.tentacles) {
       for (let j = 0; j < t.nodes.length; j++) {
         if (abs(j - signalPhase) < 2.0) {
-          stroke(255, 60, 80, 255);
+          stroke(350, 100, 100, 255);  // vivid red travel pulse
           point(t.nodes[j].x, t.nodes[j].y, t.nodes[j].z);
         }
       }
@@ -353,7 +361,7 @@ class Jellyfish {
       rotate(this.renderState.angle, this.renderState.axis);
     }
 
-    stroke(150, 150, 150, 30);
+    stroke(0, 0, 60, 30);  // gray mesh — unchanged
     strokeWeight(0.5);
     beginShape(LINES);
     for (let e of this.edges) {
@@ -380,7 +388,7 @@ class Jellyfish {
       let ty = lerp(nA.y, nB.y, tailP);
       let tz = lerp(nA.z, nB.z, tailP);
       
-      stroke(255, 50, 80, s.intensity * 200);
+      stroke(0, lerp(0, 100, this.colorBlend), lerp(65, 100, this.colorBlend), s.intensity * 200);
       vertex(tx, ty, tz);
       vertex(x, y, z);
     }
@@ -395,7 +403,7 @@ class Jellyfish {
       let x = lerp(nA.x, nB.x, s.p);
       let y = lerp(nA.y, nB.y, s.p);
       let z = lerp(nA.z, nB.z, s.p);
-      stroke(255, 100, 120, s.intensity * 255);
+      stroke(0, lerp(0, 100, this.colorBlend), lerp(65, 100, this.colorBlend), s.intensity * 255);
       vertex(x, y, z);
     }
     endShape();
@@ -406,7 +414,7 @@ class Jellyfish {
       let gIdx = this.hiddenGanglia[i];
       let n = this.nodes[gIdx];
       let act = abs(this.nn.hidden[i]);
-      stroke(255, 40, 60, 50 + act * 205);
+      stroke(0, lerp(0, 100, this.colorBlend), lerp(60, 100, this.colorBlend), 50 + act * 205);
       vertex(n.x, n.y, n.z);
     }
     endShape();
@@ -417,7 +425,7 @@ class Jellyfish {
       let gIdx = this.outputGanglia[i];
       let n = this.nodes[gIdx];
       let act = abs(this.nn.outputs[i]);
-      stroke(255, 80, 100, 50 + act * 205);
+      stroke(0, lerp(0, 100, this.colorBlend), lerp(60, 100, this.colorBlend), 50 + act * 205);
       vertex(n.x, n.y, n.z);
     }
     endShape();
@@ -427,17 +435,17 @@ class Jellyfish {
     for (let i = 0; i < this.nodes.length; i++) {
       let n = this.nodes[i];
       if (i % 37 === 0) {
-        stroke(200, 200, 200, 255);
+        stroke(0, 0, 85, 255);
       } else {
-        stroke(150, 150, 150, 80 + 40 * sin(frameCount * 0.05 + i));
+        stroke(0, 0, 60, 80 + 40 * sin(frameCount * 0.05 + i));
       }
       vertex(n.x, n.y, n.z);
     }
     endShape();
 
     blendMode(BLEND);
-    fill(60, 70, 80, 100); 
-    stroke(150, 150, 150, 30);
+    fill(220, 20, 25, 100);
+    stroke(0, 0, 60, 30);
     strokeWeight(0.5);
     
     for (let r = 0; r < this.rings; r++) {
@@ -463,6 +471,7 @@ let particles = [];
 function setup() {
   let S = min(windowWidth, windowHeight);
   createCanvas(S, S, WEBGL);
+  colorMode(HSB, 360, 100, 100, 255);
   jellies.push(new Jellyfish(0, 0, 0));
 }
 
@@ -475,6 +484,15 @@ function draw() {
     j.update();
     j.render();
   }
+}
+
+function mousePressed() {
+  for (let j of jellies) j.startleFrames = 180;
+}
+
+function touchStarted() {
+  for (let j of jellies) j.startleFrames = 180;
+  return false;
 }
 
 function windowResized() {
