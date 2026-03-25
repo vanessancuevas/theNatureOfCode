@@ -70,22 +70,27 @@ function draw() {
   targetDir = createVector(nx, ny * 0.25, nz).normalize();
 
   let d         = pos.mag();
-  let bounds    = min(width, height) * 0.22;
-  let maxBounds = min(width, height) * 0.28;
+  let bounds    = min(width, height) * 0.10;
+  let maxBounds = min(width, height) * 0.15;
 
   if (d > bounds) {
     let toCenter = pos.copy().mult(-1).normalize();
-    let factor   = map(d, bounds, maxBounds, 0.0, 0.4, true);
+    let factor   = map(d, bounds, maxBounds, 0.0, 0.6, true);
     targetDir.lerp(toCenter, factor).normalize();
   }
 
-  let targetSpeed = startled ? 4.5 : 0.8;
+  // Suppress vertical wandering — body is tall and clips top/bottom
+  targetDir.y *= 0.2;
+  targetDir.normalize();
+
+  let targetSpeed = startled ? 2.5 : 0.6;
   jellySpeed = lerp(jellySpeed, targetSpeed, 0.05);
 
   vel.lerp(targetDir, 0.03).normalize().mult(jellySpeed);
   pos.add(vel);
 
-  let hardLimit = min(width, height) * 0.30;
+  // Hard clamp — tight enough that ±115 body height stays inside circle
+  let hardLimit = min(width, height) * 0.16;
   if (pos.mag() > hardLimit) pos.normalize().mult(hardLimit);
 
   background(0);
