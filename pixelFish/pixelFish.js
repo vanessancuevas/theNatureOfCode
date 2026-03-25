@@ -2,6 +2,7 @@
 // Pepper's Ghost installation build — peppers-ghost branch
 
 const DEBUG_TOUCH = true; // set to false before exhibition
+const MASK_MODE   = 'circle'; // 'none' | 'circle' (snow globe) | 'oval' (Erlenmeyer flask)
 
 // ─── Screen / canvas layout ───────────────────────────────────────────────────
 // Dynamic bounds — fill the full window for Pepper's Ghost installation.
@@ -14,6 +15,62 @@ function calcBounds() {
   SH    = windowHeight;
   WLINE = SH * 0.25;   // air strip: top 25% of canvas — generous feeding zone
   SBOT  = SH;
+}
+
+// Returns geometry params for the active vessel mask
+function getMaskParams() {
+  const cx = SW / 2;
+  const cy = SH / 2;
+  // Circle
+  const r = min(SW, SH) * 0.45;
+  // Oval (Erlenmeyer): narrow neck top 1/3, wide round body bottom 2/3
+  const totH    = SH * 0.90;
+  const topY    = (SH - totH) / 2;
+  const botY    = topY + totH;
+  const neckBot = topY + totH * 0.33;
+  const neckHW  = SW * 0.08;
+  const bodyHW  = SW * 0.40;
+  const bodyCY  = neckBot + (botY - neckBot) * 0.5;
+  return { cx, cy, r, topY, botY, neckBot, neckHW, bodyHW, bodyCY };
+}
+
+// Clips drawingContext to the active vessel shape
+function applyVesselMask() {
+  if (MASK_MODE === 'none') return;
+  const { cx, cy, r, topY, botY, neckBot, neckHW, bodyHW, bodyCY } = getMaskParams();
+  const ctx = drawingContext;
+  ctx.beginPath();
+  if (MASK_MODE === 'circle') {
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  } else if (MASK_MODE === 'oval') {
+    ctx.moveTo(cx - neckHW, topY);
+    ctx.lineTo(cx + neckHW, topY);
+    ctx.bezierCurveTo(cx + neckHW, neckBot, cx + bodyHW, neckBot, cx + bodyHW, bodyCY);
+    ctx.bezierCurveTo(cx + bodyHW, botY - (botY - bodyCY) * 0.1, cx + bodyHW * 0.5, botY, cx, botY);
+    ctx.bezierCurveTo(cx - bodyHW * 0.5, botY, cx - bodyHW, botY - (botY - bodyCY) * 0.1, cx - bodyHW, bodyCY);
+    ctx.bezierCurveTo(cx - bodyHW, neckBot, cx - neckHW, neckBot, cx - neckHW, topY);
+    ctx.closePath();
+  }
+  ctx.clip();
+}
+
+// Returns true if (x, y) is inside the active vessel shape
+function isInsideVessel(x, y) {
+  if (MASK_MODE === 'none') {
+    return x >= SX && x <= SX + SW && y >= SY && y <= SBOT;
+  }
+  const { cx, cy, r, topY, botY, neckBot, neckHW, bodyHW, bodyCY } = getMaskParams();
+  if (MASK_MODE === 'circle') {
+    return dist(x, y, cx, cy) <= r;
+  }
+  if (MASK_MODE === 'oval') {
+    if (y < topY || y > botY) return false;
+    if (y < neckBot) return x >= cx - neckHW && x <= cx + neckHW;
+    const normX = (x - cx) / bodyHW;
+    const normY = (y - bodyCY) / ((botY - bodyCY) * 1.1);
+    return normX * normX + normY * normY <= 1;
+  }
+  return false;
 }
 
 // ─── Global state ────────────────────────────────────────────────────────────
@@ -817,6 +874,10 @@ function draw() {
     if (!fish[i].isDropping && !fish[i].isDying && fish[i].fitness > leaderFit)
       { leaderFit = fish[i].fitness; leaderIdx = i; }
 
+  // Clip rendering to vessel shape
+  drawingContext.save();
+  applyVesselMask();
+
   // Glass tap shake — jitter translation
   let shakeX = 0, shakeY = 0;
   if (tapShake > 0) {
@@ -879,6 +940,8 @@ function draw() {
     circle(debugTouchX, debugTouchY, 40);
     debugTouchTimer--;
   }
+
+  drawingContext.restore();
 }
 
 function windowResized() {
@@ -891,7 +954,7 @@ function windowResized() {
 }
 
 function mouseClicked() {
-  if (mouseX < SX || mouseX > SX+SW || mouseY < SY || mouseY > SBOT) return;
+  if (!isInsideVessel(mouseX, mouseY)) return;
 
   if (mouseY < WLINE) {
     // Above waterline — food falls in from click position with gravity
@@ -923,7 +986,7 @@ function touchStarted() {
   const tx = touches[0].x;
   const ty = touches[0].y;
 
-  if (tx < SX || tx > SX+SW || ty < SY || ty > SBOT) return false;
+  if (!isInsideVessel(tx, ty)) return false;
 
   if (DEBUG_TOUCH) {
     debugTouchX = tx;
