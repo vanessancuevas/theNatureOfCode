@@ -1,5 +1,7 @@
 // Pixel Fish — Neuroevolution Edition
-// Simulation lives inside a vintage CRT monitor frame.
+// Pepper's Ghost installation build — peppers-ghost branch
+
+const DEBUG_TOUCH = true; // set to false before exhibition
 
 // ─── Screen / canvas layout ───────────────────────────────────────────────────
 // Dynamic bounds — fill the full window for Pepper's Ghost installation.
@@ -41,6 +43,9 @@ const NET_SPEED = 7;
 let tapShake  = 0;   // countdown frames
 let tapX = 0, tapY = 0;
 let ripples = [];    // [{x,y,r,alpha}]
+
+// Debug touch indicator
+let debugTouchX = 0, debugTouchY = 0, debugTouchTimer = 0;
 
 // Evolution
 let generation      = 1;
@@ -863,6 +868,14 @@ function draw() {
   for (let gx = SX; gx < SX + SW; gx += PIX_SCALE) line(gx, SY, gx, SBOT);
   for (let gy = SY; gy < SBOT; gy += PIX_SCALE) line(SX, gy, SX + SW, gy);
   noStroke();
+
+  // Debug touch flash — fades over 20 frames
+  if (DEBUG_TOUCH && debugTouchTimer > 0) {
+    const alpha = map(debugTouchTimer, 20, 0, 255, 0);
+    noStroke(); fill(255, 255, 255, alpha);
+    circle(debugTouchX, debugTouchY, 40);
+    debugTouchTimer--;
+  }
 }
 
 function windowResized() {
@@ -900,4 +913,41 @@ function mouseClicked() {
       f.panicTimer  = round(random(80, 180)); // 1.5–3s of panic
     }
   }
+}
+
+function touchStarted() {
+  if (!touches[0]) return false;
+  const tx = touches[0].x;
+  const ty = touches[0].y;
+
+  if (tx < SX || tx > SX+SW || ty < SY || ty > SBOT) return false;
+
+  if (DEBUG_TOUCH) {
+    debugTouchX = tx;
+    debugTouchY = ty;
+    debugTouchTimer = 20;
+  }
+
+  if (ty < WLINE) {
+    // Above waterline — drop food
+    foodParticles.push(new FoodParticle(tx, ty));
+  } else {
+    // In the water — tap the glass
+    tapShake = 18;
+
+    for (let i = 0; i < 4; i++)
+      ripples.push({ x: tx, y: ty, r: i * 14, alpha: 200 - i * 40 });
+
+    for (let f of fish) {
+      if (f.isDropping || f.isDying) continue;
+      let d = dist(f.position.x, f.position.y, tx, ty);
+      let force = p5.Vector.sub(f.position, createVector(tx, ty))
+                            .setMag(map(d, 0, SW, 4.5, 0.8));
+      f.velocity.add(force);
+      f.velocity.limit(f.maxSpeed * 3);
+      f.isPanicked  = true;
+      f.panicTimer  = round(random(80, 180));
+    }
+  }
+  return false; // prevent page scroll
 }
