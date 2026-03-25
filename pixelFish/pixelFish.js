@@ -22,7 +22,7 @@ function getMaskParams() {
   const cx = SW / 2;
   const cy = SH / 2;
   // Circle
-  const r = min(SW, SH) * 0.45;
+  const r = min(SW, SH) * 0.225;
   // Oval (Erlenmeyer): narrow neck top 1/3, wide round body bottom 2/3
   const totH    = SH * 0.90;
   const topY    = (SH - totH) / 2;
