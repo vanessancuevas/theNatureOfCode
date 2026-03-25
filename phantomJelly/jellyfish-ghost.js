@@ -347,7 +347,7 @@ class Jellyfish {
       rotate(this.renderState.angle, this.renderState.axis);
     }
 
-    stroke(248, 100, 100, 28);  // electric blue bell mesh
+    stroke(205, 65, 100, 28);  // light blue bell mesh
     strokeWeight(1);
     beginShape(LINES);
     for (let e of this.edges) {
@@ -374,7 +374,7 @@ class Jellyfish {
       let ty = lerp(nA.y, nB.y, tailP);
       let tz = lerp(nA.z, nB.z, tailP);
 
-      stroke(248, 100, 100, s.intensity * 200);  // electric blue signal trail
+      stroke(205, 65, 100, s.intensity * 200);  // light blue signal trail
       vertex(tx, ty, tz);
       vertex(x, y, z);
     }
@@ -389,7 +389,7 @@ class Jellyfish {
       let x = lerp(nA.x, nB.x, s.p);
       let y = lerp(nA.y, nB.y, s.p);
       let z = lerp(nA.z, nB.z, s.p);
-      stroke(280, 100, 100, s.intensity * 255);  // vivid purple signal head
+      stroke(205, 40, 100, s.intensity * 255);  // light blue signal head
       vertex(x, y, z);
     }
     endShape();
@@ -400,7 +400,7 @@ class Jellyfish {
       let gIdx = this.hiddenGanglia[i];
       let n = this.nodes[gIdx];
       let act = abs(this.nn.hidden[i]);
-      stroke(250, 100, 100, 50 + act * 205);  // indigo hidden ganglia
+      stroke(205, 65, 100, 50 + act * 205);  // light blue hidden ganglia
       vertex(n.x, n.y, n.z);
     }
     endShape();
@@ -411,7 +411,7 @@ class Jellyfish {
       let gIdx = this.outputGanglia[i];
       let n = this.nodes[gIdx];
       let act = abs(this.nn.outputs[i]);
-      stroke(290, 100, 100, 50 + act * 205);  // magenta output ganglia
+      stroke(205, 65, 100, 50 + act * 205);  // light blue output ganglia
       vertex(n.x, n.y, n.z);
     }
     endShape();
@@ -421,9 +421,9 @@ class Jellyfish {
     for (let i = 0; i < this.nodes.length; i++) {
       let n = this.nodes[i];
       if (random() > 0.98) {
-        stroke(195, 20, 100, 255);   // icy white-cyan sparkle
+        stroke(205, 20, 100, 255);   // near-white light blue sparkle
       } else {
-        stroke(248, 100, 100, 75);   // electric blue nodes
+        stroke(205, 65, 100, 75);    // light blue nodes
       }
       vertex(n.x, n.y, n.z);
     }
