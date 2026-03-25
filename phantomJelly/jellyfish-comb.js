@@ -38,8 +38,8 @@ function bodyRadius(theta, phi) {
 
 function jellySurface(theta, phi) {
   let r = bodyRadius(theta, phi);
-  let R = 110;
-  let H = 175;
+  let R = 72;
+  let H = 115;
   return createVector(
     R * r * Math.cos(phi),
     H * (Math.cos(theta) * 0.85),
