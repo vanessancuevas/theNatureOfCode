@@ -102,11 +102,17 @@ new p5(function(sk) {
     }
 
     // 3. Drive contractPhase from swim pulse.
-    //    GFNN events can still push it higher via fireGFNN → contractPhase=1.0.
-    contractPhase = Math.max(contractPhase, pulse * 0.85);
-
-    // Decay contractPhase when not being driven (mirrors stepGFNN logic)
-    if (!gfnn.active) contractPhase = Math.max(0, contractPhase - 0.02);
+    //    contractPhase directly tracks the pulse so it rises AND falls cleanly
+    //    (Math.max would plateau on the way down — wrong visual).
+    //    GFNN events spike it to 1.0 via fireGFNN; we decay from there until
+    //    the swim pulse takes back over.
+    let swimContract = pulse * 0.85;
+    if (!gfnn.active) {
+      contractPhase = swimContract;            // follow pulse up and down
+    } else {
+      // GFNN active: decay from 1.0, but don't drop below swim pulse level
+      contractPhase = Math.max(swimContract, contractPhase - 0.035);
+    }
 
     // 4. Speed: peaks at max during pulse, idles near 0 between pulses
     let maxSpd    = jelly.startleFrames > 0 ? STARTLE_MAX_SPEED : IDLE_MAX_SPEED;
@@ -318,23 +324,40 @@ new p5(function(sk) {
   }
 
   // ── Bell geometry ──────────────────────────────────────────────────────
+  // Contraction model ported from reference Jellyfish class:
+  //   r       = baseR * (1 - 0.4 * contract * sin(phi)) + noise
+  //             → proportional radial squeeze, strongest at equator
+  //   yStretch = 1 + 0.3 * contract
+  //             → bell ELONGATES vertically as it squeezes inward
+  //             (incompressible mesoglea: squeeze in → stretch out)
+  // This replaces the old additive contractPull + yScale compress which
+  // was doing the wrong thing on the Y axis.
   function getBellVertex(u,v,t,contract){
-    let theta=u*sk.TWO_PI, phi=v*sk.PI*0.65, r=130;
-    let idlePulse=Math.sin(swimPhase - v*sk.PI)*8*v;
-    let contractPull= -contract * 35 * Math.sin(v*sk.PI);
-    r+=idlePulse+contractPull;
-    if(v>0.7){
-      r+=Math.sin(theta*24+t*4)*8*(v-0.7);
-      r+=Math.pow(v-0.7,2)*250;
-      r-=contract*30*(v-0.7);
+    let theta = u * sk.TWO_PI;
+    let phi   = v * sk.PI * 0.65;
+
+    // Organic surface noise — gives the bell a living, irregular texture
+    let nval = sk.noise(u * 4, v * 4, t * 0.015) * 11;
+
+    // Radial contraction: proportional squeeze, strongest at equator (sin(phi) peak)
+    let r = 130 * (1 - 0.4 * contract * Math.sin(phi)) + nval;
+
+    // Flared skirt — organic trailing edge, reins in during contraction
+    if (v > 0.7) {
+      r += Math.sin(theta * 24 + t * 4) * 8 * (v - 0.7);
+      r += Math.pow(v - 0.7, 2) * 250;
+      r -= contract * 30 * (v - 0.7);
     }
-    let sp=Math.sin(phi), cp=Math.cos(phi);
-    let yScale = v<0.2 ? 0.8 : 1.0;
-    yScale -= contract*0.25*(1-v);
+
+    let sp = Math.sin(phi), cp = Math.cos(phi);
+
+    // Vertical stretch: bell elongates upward as it squeezes inward
+    let yStretch = 1 + 0.3 * contract;
+
     return {
-      x: r*sp*Math.cos(theta),
-      y: -r*cp*yScale,
-      z: r*sp*Math.sin(theta)
+      x:  r  * sp * Math.cos(theta),
+      y: -130 * cp * yStretch,    // use baseR for Y (not contracted r)
+      z:  r  * sp * Math.sin(theta)
     };
   }
 
