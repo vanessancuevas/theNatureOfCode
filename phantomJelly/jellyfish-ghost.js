@@ -44,7 +44,7 @@ class Jellyfish {
     this.targetDir = createVector(0, -1, 0);
     this.speed = 0;
     this.cycle = random(TWO_PI);
-    this.baseR = 68;
+    this.baseR = 48;
     this.startleFrames = 0;
     this.colorBlend = 0; // 1 = full pink, 0 = light blue; fades slowly after startle
 
