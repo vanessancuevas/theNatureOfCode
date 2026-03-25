@@ -374,7 +374,7 @@ class Jellyfish {
       let ty = lerp(nA.y, nB.y, tailP);
       let tz = lerp(nA.z, nB.z, tailP);
 
-      stroke(205, 65, 100, s.intensity * 200);  // light blue signal trail
+      stroke(this.startleFrames > 0 ? 295 : 205, this.startleFrames > 0 ? 60 : 65, 100, s.intensity * 200);
       vertex(tx, ty, tz);
       vertex(x, y, z);
     }
@@ -389,7 +389,7 @@ class Jellyfish {
       let x = lerp(nA.x, nB.x, s.p);
       let y = lerp(nA.y, nB.y, s.p);
       let z = lerp(nA.z, nB.z, s.p);
-      stroke(205, 40, 100, s.intensity * 255);  // light blue signal head
+      stroke(this.startleFrames > 0 ? 295 : 205, this.startleFrames > 0 ? 60 : 40, 100, s.intensity * 255);
       vertex(x, y, z);
     }
     endShape();
