@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="color-gamut" content="p3">
+<title>Neural Jellyfish — Step 4d</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { background:#000; overflow:hidden; touch-action:none; }
+  canvas { display:block; background:#000; }
+  #perf {
+    position:fixed; bottom:12px; right:12px;
+    font-family:'Courier New',monospace; font-size:10px;
+    color:rgba(0,200,255,0.3); letter-spacing:0.06em;
+    text-transform:uppercase; pointer-events:none;
+  }
+  #hint {
+    position:fixed; bottom:12px; left:12px;
+    font-family:'Courier New',monospace; font-size:10px;
+    color:rgba(0,200,255,0.2); letter-spacing:0.06em;
+    text-transform:uppercase; pointer-events:none;
+    transition: opacity 3s;
+  }
+  #state {
+    position:fixed; top:16px; left:16px;
+    font-family:'Courier New',monospace; font-size:10px;
+    color:rgba(0,200,255,0.25); letter-spacing:0.1em;
+    text-transform:uppercase; pointer-events:none;
+  }
+  /*
+   * DEBUG OVERLAY  —  D key
+   *
+   * REGRESSION CHECKS
+   *   ✓ idle:    bell pulses slowly, drifts with noise, no auto-spin
+   *   ✓ idle:    bell tilts to face direction of travel
+   *   ✓ startle: 3-4 rapid contractions after tap, then returns to idle rhythm
+   *   ✓ startle: jelly moves AWAY from tap point, bell faces flee direction
+   *   ✓ startle: startleFrames countdown visible in debug; swim reverts after ~3s
+   *   ✓ boundary: jelly steers back toward centre when near edge
+   *   ✓ arousal:  approach still brightens bell before click (step 4c intact)
+   */
+  #debug {
+    display: none;
+    position: fixed; top: 16px; right: 16px;
+    font-family: 'Courier New', monospace; font-size: 10px; line-height: 1.7;
+    color: rgba(0,230,255,0.55); letter-spacing: 0.06em;
+    text-transform: uppercase; pointer-events: none;
+    background: rgba(0,0,0,0.55); padding: 10px 14px; border-radius: 4px;
+    border: 1px solid rgba(0,200,255,0.15);
+  }
+</style>
+</head>
+<body>
+<div id="perf">fps: —</div>
+<div id="hint">approach to arouse · tap to startle</div>
+<div id="state">dormant</div>
+<div id="debug"></div>
+<script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.js"></script>
+<script src="jellyfish-step4d.js"></script>
+</body>
+</html>
