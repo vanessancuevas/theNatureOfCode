@@ -2,21 +2,22 @@
 // Simulation lives inside a vintage CRT monitor frame.
 
 // ─── Screen / canvas layout ───────────────────────────────────────────────────
-// Canvas: 1000 × 980.  Computer image: 980×980 drawn at x=10, y=20.
-// Screen hole measured from alpha channel of computer.png (246,192)→(783,592)
-// at 980/1024 = 0.957 scale, +20px vertical offset:
-const SX   = 243;   // screen left edge
-const SY   = 204;   // screen top edge
-const SW   = 522;   // screen width
-const SH   = 399;   // screen height
-const SR   = 40;    // CRT rounded-corner radius
-const WLINE = SY + 65;   // waterline (air strip at top, rest is water)
-const SBOT  = SY + SH;   // screen bottom
+// Dynamic bounds — fill the full window for Pepper's Ghost installation.
+let SX, SY, SW, SH, WLINE, SBOT;
+
+function calcBounds() {
+  SX    = 0;
+  SY    = 0;
+  SW    = windowWidth;
+  SH    = windowHeight;
+  WLINE = SH * 0.12;   // air strip: top 12% of canvas
+  SBOT  = SH;
+}
 
 // ─── Global state ────────────────────────────────────────────────────────────
 let fish = [];
 let foodParticles = [];
-let fishLeftImg, fishRightImg, computerImg;
+let fishLeftImg, fishRightImg;
 let coloredFishImages = {};
 let liquid;
 
@@ -637,11 +638,11 @@ class Liquid {
     const PAD = 50; // overdraw past screen edges to cover max shake offset
     for (let y = this.y; y < this.y + this.h; y++) {
       let t = map(y, this.y, this.y+this.h, 0, 1);
-      stroke(lerpColor(color(135,206,250), color(0,105,148), t));
+      stroke(lerpColor(color(0,20,60), color(0,5,30), t));
       line(this.x - PAD, y, this.x+this.w + PAD, y);
     }
     // Waterline
-    strokeWeight(2); stroke(0, 105, 148);
+    strokeWeight(2); stroke(0, 30, 80);
     line(this.x - PAD, this.y, this.x+this.w + PAD, this.y);
     strokeWeight(1);
     // Air zone (above waterline, inside screen)
@@ -740,11 +741,11 @@ function drawLegend() {
 function preload() {
   fishLeftImg  = loadImage(fishLeftSVG);
   fishRightImg = loadImage(fishRightSVG);
-  computerImg  = loadImage('computer.png');
 }
 
 function setup() {
-  createCanvas(1000, 980);
+  calcBounds();
+  createCanvas(windowWidth, windowHeight);
 
   for (let colorHex of rainbowColors) {
     coloredFishImages[colorHex] = {
@@ -780,7 +781,7 @@ function setup() {
 }
 
 function draw() {
-  background(255);
+  background(0);
 
 
   // Update all fish
@@ -808,16 +809,6 @@ function draw() {
   for (let i = 0; i < fish.length; i++)
     if (!fish[i].isDropping && !fish[i].isDying && fish[i].fitness > leaderFit)
       { leaderFit = fish[i].fitness; leaderIdx = i; }
-
-  // ── Clip simulation to the CRT screen hole ───────────────────────────────
-  drawingContext.save();
-  drawingContext.beginPath();
-  if (drawingContext.roundRect) {
-    drawingContext.roundRect(SX, SY, SW, SH, SR);
-  } else {
-    drawingContext.rect(SX, SY, SW, SH);
-  }
-  drawingContext.clip();
 
   // Glass tap shake — jitter translation
   let shakeX = 0, shakeY = 0;
@@ -872,13 +863,15 @@ function draw() {
   for (let gx = SX; gx < SX + SW; gx += PIX_SCALE) line(gx, SY, gx, SBOT);
   for (let gy = SY; gy < SBOT; gy += PIX_SCALE) line(SX, gy, SX + SW, gy);
   noStroke();
-  // ─────────────────────────────────────────────────────────────────────────
+}
 
-  drawingContext.restore();
-  // ─────────────────────────────────────────────────────────────────────────
-
-  // Computer frame on top — PNG alpha channel handles compositing naturally
-  image(computerImg, 10, 20, 980, 980);
+function windowResized() {
+  calcBounds();
+  resizeCanvas(windowWidth, windowHeight);
+  if (smallTankPg) smallTankPg.remove();
+  smallTankPg = createGraphics(floor(SW / PIX_SCALE), floor(SH / PIX_SCALE));
+  smallTankPg.noSmooth();
+  liquid = new Liquid(SX, WLINE, SW, SBOT - WLINE, 0.1);
 }
 
 function mouseClicked() {
