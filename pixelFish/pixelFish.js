@@ -187,6 +187,7 @@ function hsbToRgb(h, s, v) {
 function updateFlashPg(direction, hueMin, hueMax, pgObj) {
   const SIZE = 60;
   let pg = pgObj[direction];
+  if (frameCount % 3 !== 0) return pg; // throttle: update every 3 frames
   pg.loadPixels();
   pg.pixels.fill(0);
   // Smooth pulse: oscillates between hueMin and hueMax
@@ -205,6 +206,7 @@ function updateFlashPg(direction, hueMin, hueMax, pgObj) {
 function updateRainbowPg(direction) {
   const SIZE = 60;
   let pg = rainbowPg[direction];
+  if (frameCount % 3 !== 0) return pg; // throttle: update every 3 frames
   pg.loadPixels();
   pg.pixels.fill(0);
   let t = frameCount * 6;
@@ -843,19 +845,20 @@ function draw() {
   }
 
   // ── Lo-fi post-process: pixelate + green tint ────────────────────────────
-  const snap = get(SX, SY, SW, SH);
-  // Scale down into small buffer (creates chunky pixels)
-  smallTankPg.image(snap, 0, 0, smallTankPg.width, smallTankPg.height);
-  // Apply green tint to small buffer pixels
-  smallTankPg.loadPixels();
-  const sp = smallTankPg.pixels;
-  for (let i = 0; i < sp.length; i += 4) {
-    sp[i]   = sp[i]   * 0.80;  // reduce red
-    sp[i+1] = sp[i+1] * 1.00;  // keep green
-    sp[i+2] = sp[i+2] * 0.72;  // reduce blue
+  // Throttle expensive pixel ops to every 3 frames — smallTankPg holds last frame
+  if (frameCount % 3 === 0) {
+    const snap = get(SX, SY, SW, SH);
+    smallTankPg.image(snap, 0, 0, smallTankPg.width, smallTankPg.height);
+    smallTankPg.loadPixels();
+    const sp = smallTankPg.pixels;
+    for (let i = 0; i < sp.length; i += 4) {
+      sp[i]   = sp[i]   * 0.80;  // reduce red
+      sp[i+1] = sp[i+1] * 1.00;  // keep green
+      sp[i+2] = sp[i+2] * 0.72;  // reduce blue
+    }
+    smallTankPg.updatePixels();
   }
-  smallTankPg.updatePixels();
-  // Draw back scaled up — noSmooth() makes it chunky pixel art
+  // Always draw — uses cached buffer on skipped frames
   drawingContext.imageSmoothingEnabled = false;
   image(smallTankPg, SX, SY, SW, SH);
 
