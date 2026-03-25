@@ -197,15 +197,20 @@ class Jellyfish {
     }
 
     this.nodes.forEach((n) => {
-      let nval = noise(n.u * 3, n.v * 3, frameCount * 0.01 + this.cycle) * 2.5;
-      if (n.v === 0) nval = 0; 
-      
+      let lat = n.v * HALF_PI;
+
+      // Traveling ripple wave down the bell (from reference)
+      let ripple = sin(lat * 4 - frameCount * 0.08 + this.cycle * 5) * (this.baseR * 0.18);
+
+      // Circular noise — wraps cleanly around bell (from reference)
+      let nval = map(noise(cos(n.theta) * 0.5, sin(n.theta) * 0.5, frameCount * 0.01 + this.cycle + n.v), 0, 1, -6, 6);
+
       let rProfile = n.v * 1.25 + 0.5 * sin(n.v * PI) - 0.15 * sin(n.v * TWO_PI);
-      let r = this.baseR * 2.2 * rProfile * (1 - 0.15 * pulse * n.v) + nval;
-      
+      let r = this.baseR * 2.2 * rProfile * (1 - 0.15 * pulse * n.v) + nval + ripple * n.v;
+
       let yProfile = 1 - pow(n.v, 2.0) + 0.2 * sin(n.v * PI * 2.5);
       let yStretch = 1 + 0.2 * pulse;
-      
+
       n.x = r * cos(n.theta);
       n.y = -this.baseR * 1.5 * yProfile * yStretch;
       n.z = r * sin(n.theta);
