@@ -141,14 +141,14 @@ class Jellyfish {
     let steer = createVector(out[0], out[1], out[2]).mult(0.02);
     this.targetDir.add(steer).normalize();
 
-    // Tighter bounds — keep jelly inside the circle (r < 0.28 * canvasSize)
+    // Soft steering back toward centre when approaching circle edge
     let d = this.pos.mag();
-    let bounds    = min(width, height) * 0.28;
-    let maxBounds = min(width, height) * 0.36;
+    let bounds    = min(width, height) * 0.22;
+    let maxBounds = min(width, height) * 0.28;
 
     if (d > bounds) {
       let toCenter = this.pos.copy().mult(-1).normalize();
-      let factor = map(d, bounds, maxBounds, 0.0, 0.15, true);
+      let factor = map(d, bounds, maxBounds, 0.0, 0.4, true);
       this.targetDir.lerp(toCenter, factor).normalize();
     }
 
@@ -161,6 +161,12 @@ class Jellyfish {
     this.vel.normalize().mult(this.speed);
 
     this.pos.add(this.vel);
+
+    // Hard clamp — position can never leave the safe circle regardless of speed/momentum
+    let hardLimit = min(width, height) * 0.30;
+    if (this.pos.mag() > hardLimit) {
+      this.pos.normalize().mult(hardLimit);
+    }
 
     let up = createVector(0, -1, 0);
     let vNorm = this.vel.copy().normalize();
