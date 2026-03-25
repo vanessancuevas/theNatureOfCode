@@ -455,44 +455,16 @@ let jellies = [];
 let particles = [];
 
 function setup() {
-  createCanvas(windowWidth, windowHeight, WEBGL);
-  
+  let S = min(windowWidth, windowHeight);
+  createCanvas(S, S, WEBGL);
   jellies.push(new Jellyfish(0, 0, 0));
-  
-  for (let i = 0; i < 300; i++) {
-    particles.push(
-      createVector(
-        random(-width, width),
-        random(-height, height),
-        random(-width, width)
-      )
-    );
-  }
 }
 
 function draw() {
-  background(5, 1, 2);
-  
-  let camX = sin(frameCount * 0.0005) * 150;
-  let camZ = cos(frameCount * 0.0005) * 150;
-  camera(camX, 0, (height / 2.0) / tan((PI * 30.0) / 180.0) + camZ, 0, 0, 0, 0, 1, 0);
-
+  background(0);
   blendMode(ADD);
-  stroke(255, 80, 100, 60);
-  strokeWeight(2);
-  beginShape(POINTS);
-  for (let p of particles) {
-    p.y -= 0.5;
-    p.x += sin(p.y * 0.01 + frameCount * 0.01) * 0.3;
-    if (p.y < -height) {
-      p.y = height;
-      p.x = random(-width, width);
-    }
-    vertex(p.x, p.y, p.z);
-  }
-  endShape();
+  camera(0, -40, (height / 2.0) / tan((PI * 30.0) / 180.0), 0, 0, 0, 0, 1, 0);
 
-  blendMode(BLEND);
   for (let j of jellies) {
     j.update();
     j.render();
@@ -500,5 +472,6 @@ function draw() {
 }
 
 function windowResized() {
-  resizeCanvas(windowWidth, windowHeight);
+  let S = min(windowWidth, windowHeight);
+  resizeCanvas(S, S);
 }
