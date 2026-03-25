@@ -13,8 +13,10 @@ function calcBounds() {
   SY    = 0;
   SW    = windowWidth;
   SH    = windowHeight;
-  WLINE = SH * 0.25;   // air strip: top 25% of canvas — generous feeding zone
   SBOT  = SH;
+  // WLINE sits 25% down inside the vessel circle so the top quarter is the feeding zone
+  const r = min(SW, SH) * 0.225;
+  WLINE = SH / 2 - r + r * 0.5; // circle top + 25% of circle height
 }
 
 // Returns geometry params for the active vessel mask
