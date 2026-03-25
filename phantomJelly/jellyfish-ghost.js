@@ -288,7 +288,7 @@ class Jellyfish {
 
   render() {
     noStroke();
-    fill(60, 30, 200, 50);
+    fill(258, 100, 70, 50);   // deep indigo tentacle fill
     for (let t of this.tentacles) {
       beginShape(TRIANGLE_STRIP);
       for (let j = 0; j < t.nodes.length; j++) {
@@ -320,7 +320,7 @@ class Jellyfish {
     }
 
     noFill();
-    stroke(120, 80, 255, 120);
+    stroke(272, 100, 100, 120);  // vivid violet tentacle stroke
     strokeWeight(1.5);
     for (let t of this.tentacles) {
       beginShape();
@@ -335,7 +335,7 @@ class Jellyfish {
     for (let t of this.tentacles) {
       for (let j = 0; j < t.nodes.length; j++) {
         if (abs(j - signalPhase) < 1.5) {
-          stroke(180, 150, 255, 255);
+          stroke(295, 60, 100, 255);  // hot pink-white travel pulse
           point(t.nodes[j].x, t.nodes[j].y, t.nodes[j].z);
         }
       }
@@ -347,7 +347,7 @@ class Jellyfish {
       rotate(this.renderState.angle, this.renderState.axis);
     }
 
-    stroke(50, 80, 255, 30);
+    stroke(248, 100, 100, 28);  // electric blue bell mesh
     strokeWeight(1);
     beginShape(LINES);
     for (let e of this.edges) {
@@ -374,7 +374,7 @@ class Jellyfish {
       let ty = lerp(nA.y, nB.y, tailP);
       let tz = lerp(nA.z, nB.z, tailP);
 
-      stroke(80, 40, 255, s.intensity * 200);
+      stroke(248, 100, 100, s.intensity * 200);  // electric blue signal trail
       vertex(tx, ty, tz);
       vertex(x, y, z);
     }
@@ -389,7 +389,7 @@ class Jellyfish {
       let x = lerp(nA.x, nB.x, s.p);
       let y = lerp(nA.y, nB.y, s.p);
       let z = lerp(nA.z, nB.z, s.p);
-      stroke(140, 80, 255, s.intensity * 255);
+      stroke(280, 100, 100, s.intensity * 255);  // vivid purple signal head
       vertex(x, y, z);
     }
     endShape();
@@ -400,7 +400,7 @@ class Jellyfish {
       let gIdx = this.hiddenGanglia[i];
       let n = this.nodes[gIdx];
       let act = abs(this.nn.hidden[i]);
-      stroke(70, 50, 255, 50 + act * 205);
+      stroke(250, 100, 100, 50 + act * 205);  // indigo hidden ganglia
       vertex(n.x, n.y, n.z);
     }
     endShape();
@@ -411,7 +411,7 @@ class Jellyfish {
       let gIdx = this.outputGanglia[i];
       let n = this.nodes[gIdx];
       let act = abs(this.nn.outputs[i]);
-      stroke(130, 60, 255, 50 + act * 205);
+      stroke(290, 100, 100, 50 + act * 205);  // magenta output ganglia
       vertex(n.x, n.y, n.z);
     }
     endShape();
@@ -421,9 +421,9 @@ class Jellyfish {
     for (let i = 0; i < this.nodes.length; i++) {
       let n = this.nodes[i];
       if (random() > 0.98) {
-        stroke(200, 220, 255, 255);
+        stroke(195, 20, 100, 255);   // icy white-cyan sparkle
       } else {
-        stroke(60, 100, 255, 80);
+        stroke(248, 100, 100, 75);   // electric blue nodes
       }
       vertex(n.x, n.y, n.z);
     }
@@ -439,6 +439,8 @@ function setup() {
   // Square canvas — CSS clips it to a circle for Pepper's Ghost
   let S = min(windowWidth, windowHeight);
   createCanvas(S, S, WEBGL);
+  // HSB: hue 0-360, sat 0-100, bri 0-100, alpha 0-255
+  colorMode(HSB, 360, 100, 100, 255);
   jelly = new Jellyfish();
 }
 
