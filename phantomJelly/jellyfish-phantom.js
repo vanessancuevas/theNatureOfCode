@@ -199,11 +199,11 @@ class Jellyfish {
     this.nodes.forEach((n) => {
       let lat = n.v * HALF_PI;
 
-      // Traveling ripple wave down the bell (from reference)
-      let ripple = sin(lat * 4 - frameCount * 0.08 + this.cycle * 5) * (this.baseR * 0.18);
+      // Traveling ripple wave — driven by this.cycle so it respects idle/startle pace
+      let ripple = sin(lat * 2 - this.cycle * 4) * (this.baseR * 0.05);
 
-      // Circular noise — wraps cleanly around bell (from reference)
-      let nval = map(noise(cos(n.theta) * 0.5, sin(n.theta) * 0.5, frameCount * 0.01 + this.cycle + n.v), 0, 1, -6, 6);
+      // Circular noise — wraps cleanly around bell, slow drift
+      let nval = map(noise(cos(n.theta) * 0.5, sin(n.theta) * 0.5, this.cycle * 0.5 + n.v), 0, 1, -4, 4);
 
       let rProfile = n.v * 1.25 + 0.5 * sin(n.v * PI) - 0.15 * sin(n.v * TWO_PI);
       let r = this.baseR * 2.2 * rProfile * (1 - 0.15 * pulse * n.v) + nval + ripple * n.v;
