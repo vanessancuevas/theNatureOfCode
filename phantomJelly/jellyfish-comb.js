@@ -198,8 +198,9 @@ function drawCiliaRows() {
       tip.add(p5.Vector.mult(beatDir, cilLen * 0.6));
 
       // Startle: cilia flash toward pink/white
-      let hue   = lerp((row * 45 + k * 2 + t * 20) % 360, 320, colorBlend);
-      let sat   = lerp(70 + 25 * beat, 50, colorBlend);
+      let hueSpeed = lerp(20, 400, colorBlend); // idle: slow drift, startled: full-spectrum spin
+      let hue   = (row * 45 + k * 2 + t * hueSpeed) % 360;
+      let sat   = lerp(70 + 25 * beat, 100, colorBlend);
       let bri   = lerp(75 + 25 * beat, 100, colorBlend);
       let alpha = 55 + 40 * beat;
 
