@@ -101,7 +101,11 @@
     document.querySelectorAll('.dot').forEach((d, i) => {
       d.classList.toggle('active', i === current);
     });
+    window.focus(); // reclaim keyboard focus from iframe
   }
+
+  // Refocus parent whenever iframe loads so arrow keys keep working
+  frame.addEventListener('load', () => window.focus());
 
   // Trackpad / mouse wheel swipe (horizontal)
   let wheelAccum = 0;
