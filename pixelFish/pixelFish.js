@@ -10,7 +10,7 @@ function calcBounds() {
   SY    = 0;
   SW    = windowWidth;
   SH    = windowHeight;
-  WLINE = SH * 0.12;   // air strip: top 12% of canvas
+  WLINE = SH * 0.25;   // air strip: top 25% of canvas — generous feeding zone
   SBOT  = SH;
 }
 
