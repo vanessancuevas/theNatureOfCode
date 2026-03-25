@@ -33,14 +33,14 @@ function rotateVec(v, k, theta) {
 }
 
 class Jellyfish {
-  constructor() {
+  constructor(x, y, z) {
     this.nn = new NeuralNetwork(6, 10, 3);
-    this.pos = createVector(0, 0, 0);
+    this.pos = createVector(x, y, z);
     this.vel = createVector(0, -1, 0);
     this.targetDir = createVector(0, -1, 0);
     this.speed = 0;
     this.cycle = random(TWO_PI);
-    this.baseR = 90;
+    this.baseR = random(70, 100);
 
     this.nodes = [];
     this.edges = [];
@@ -107,7 +107,7 @@ class Jellyfish {
       let tNodes = [];
       let len = floor(random(20, 35));
       for (let j = 0; j < len; j++) {
-        tNodes.push(createVector(0, 0, 0));
+        tNodes.push(createVector(x, y, z));
       }
       this.tentacles.push({ theta, nodes: tNodes });
     }
@@ -128,9 +128,9 @@ class Jellyfish {
       this.pos.x / width,
       this.pos.y / height,
       this.pos.z / width,
-      noise(frameCount * 0.005) * 2 - 1,
-      sin(frameCount * 0.005),
-      cos(frameCount * 0.005)
+      noise(frameCount * 0.005 + this.cycle) * 2 - 1,
+      sin(frameCount * 0.005 + this.cycle),
+      cos(frameCount * 0.005 + this.cycle)
     ];
 
     let out = this.nn.predict(inputs);
@@ -170,7 +170,7 @@ class Jellyfish {
     }
 
     this.nodes.forEach((n) => {
-      let nval = noise(n.u * 4, n.v * 4, frameCount * 0.015) * 11;
+      let nval = noise(n.u * 4, n.v * 4, frameCount * 0.015 + this.cycle) * 11;
       let r = this.baseR * (1 - 0.4 * pulse * sin(n.phi)) + nval;
       let yStretch = 1 + 0.3 * pulse;
 
@@ -200,8 +200,8 @@ class Jellyfish {
         let force = dir.mult(dist - restingDist);
         curr.sub(force.mult(0.6));
 
-        curr.x += map(noise(curr.x * 0.02, curr.y * 0.02, frameCount * 0.01), 0, 1, -0.6, 0.6);
-        curr.z += map(noise(curr.z * 0.02, curr.y * 0.02, frameCount * 0.01 + 100), 0, 1, -0.6, 0.6);
+        curr.x += map(noise(curr.x * 0.02, curr.y * 0.02, frameCount * 0.01 + this.cycle), 0, 1, -0.6, 0.6);
+        curr.z += map(noise(curr.z * 0.02, curr.y * 0.02, frameCount * 0.01 + 100 + this.cycle), 0, 1, -0.6, 0.6);
       }
     }
 
@@ -289,7 +289,7 @@ class Jellyfish {
         widthDir.normalize();
         
         let taper = map(j, 0, t.nodes.length - 1, 14, 1);
-        let ruffle = sin(j * 0.6 - frameCount * 0.15) * 5;
+        let ruffle = sin(j * 0.6 - frameCount * 0.15 + this.cycle) * 5;
         let finalWidth = taper + ruffle;
         
         widthDir.mult(finalWidth);
@@ -310,7 +310,7 @@ class Jellyfish {
       endShape();
     }
 
-    let signalPhase = (frameCount * 0.15) % 40;
+    let signalPhase = (frameCount * 0.15 + this.cycle * 10) % 40;
     strokeWeight(3.5);
     for (let t of this.tentacles) {
       for (let j = 0; j < t.nodes.length; j++) {
@@ -413,12 +413,19 @@ class Jellyfish {
   }
 }
 
-let jelly;
+let jellies = [];
 let particles = [];
 
 function setup() {
   createCanvas(windowWidth, windowHeight, WEBGL);
-  jelly = new Jellyfish();
+  
+  for (let i = 0; i < 3; i++) {
+    jellies.push(new Jellyfish(
+      random(-250, 250),
+      random(-150, 150),
+      random(-250, 250)
+    ));
+  }
   
   for (let i = 0; i < 300; i++) {
     particles.push(
@@ -453,8 +460,10 @@ function draw() {
   }
   endShape();
 
-  jelly.update();
-  jelly.render();
+  for (let j of jellies) {
+    j.update();
+    j.render();
+  }
 }
 
 function windowResized() {
