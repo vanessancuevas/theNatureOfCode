@@ -46,6 +46,7 @@ class Jellyfish {
     this.cycle = random(TWO_PI);
     this.baseR = 68;
     this.startleFrames = 0;
+    this.colorBlend = 0; // 1 = full pink, 0 = light blue; fades slowly after startle
 
     this.nodes = [];
     this.edges = [];
@@ -121,6 +122,7 @@ class Jellyfish {
   update() {
     let startled = this.startleFrames > 0;
     if (startled) this.startleFrames--;
+    this.colorBlend = startled ? 1.0 : lerp(this.colorBlend, 0, 0.008);
 
     // Idle: slow, lazy pulse (~1 per 5s). Startled: rapid bursts.
     this.cycle += startled ? 0.09 : 0.018;
@@ -374,7 +376,7 @@ class Jellyfish {
       let ty = lerp(nA.y, nB.y, tailP);
       let tz = lerp(nA.z, nB.z, tailP);
 
-      stroke(this.startleFrames > 0 ? 295 : 205, this.startleFrames > 0 ? 60 : 65, 100, s.intensity * 200);
+      stroke(lerp(205, 295, this.colorBlend), lerp(65, 60, this.colorBlend), 100, s.intensity * 200);
       vertex(tx, ty, tz);
       vertex(x, y, z);
     }
@@ -389,7 +391,7 @@ class Jellyfish {
       let x = lerp(nA.x, nB.x, s.p);
       let y = lerp(nA.y, nB.y, s.p);
       let z = lerp(nA.z, nB.z, s.p);
-      stroke(this.startleFrames > 0 ? 295 : 205, this.startleFrames > 0 ? 60 : 40, 100, s.intensity * 255);
+      stroke(lerp(205, 295, this.colorBlend), lerp(40, 60, this.colorBlend), 100, s.intensity * 255);
       vertex(x, y, z);
     }
     endShape();
