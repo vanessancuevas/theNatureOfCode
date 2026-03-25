@@ -44,7 +44,8 @@ class Jellyfish {
     this.targetDir = createVector(0, -1, 0);
     this.speed = 0;
     this.cycle = random(TWO_PI);
-    this.baseR = 90;
+    this.baseR = 68;
+    this.startleFrames = 0;
 
     this.nodes = [];
     this.edges = [];
@@ -118,15 +119,21 @@ class Jellyfish {
   }
 
   update() {
-    this.cycle += 0.035;
+    let startled = this.startleFrames > 0;
+    if (startled) this.startleFrames--;
+
+    // Idle: slow, lazy pulse (~1 per 5s). Startled: rapid bursts.
+    this.cycle += startled ? 0.09 : 0.018;
     let phase = (this.cycle % TWO_PI) / TWO_PI;
     let pulse = 0;
     if (phase < 0.35) {
       pulse = sin((phase * PI) / 0.35);
     }
 
-    let targetSpeed = map(pulse, 0, 1, 0.5, 7.0);
-    this.speed = lerp(this.speed, targetSpeed, 0.1);
+    let targetSpeed = startled
+      ? map(pulse, 0, 1, 1.0, 8.0)
+      : map(pulse, 0, 1, 0.1, 1.8);
+    this.speed = lerp(this.speed, targetSpeed, 0.08);
 
     let inputs = [
       this.pos.x / width,
@@ -138,7 +145,9 @@ class Jellyfish {
     ];
 
     let out = this.nn.predict(inputs);
-    let steer = createVector(out[0], out[1], out[2]).mult(0.02);
+    // Dampen NN steering in idle so drift is gentle
+    let steerStrength = startled ? 0.02 : 0.006;
+    let steer = createVector(out[0], out[1], out[2]).mult(steerStrength);
     this.targetDir.add(steer).normalize();
 
     // Soft steering back toward centre when approaching circle edge
@@ -443,6 +452,10 @@ function draw() {
 
   jelly.update();
   jelly.render();
+}
+
+function mousePressed() {
+  jelly.startleFrames = 180; // ~3s of rapid swimming
 }
 
 function windowResized() {
