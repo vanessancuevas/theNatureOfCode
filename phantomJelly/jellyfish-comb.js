@@ -12,13 +12,20 @@ let rotX = 0, rotY = 0;
 let targetRotX = 0.3, targetRotY = 0;
 
 let startleFrames = 0;
-let colorBlend    = 0; // 1 = startled, 0 = calm; fades slowly
+let colorBlend    = 0;
+
+// Wander physics
+let pos, vel, targetDir, jellySpeed;
 
 function setup() {
   let S = min(windowWidth, windowHeight);
   createCanvas(S, S, WEBGL);
   colorMode(HSB, 360, 100, 100, 100);
   noStroke();
+  pos       = createVector(0, 0, 0);
+  vel       = createVector(0, 0, 0);
+  targetDir = createVector(1, 0, 0);
+  jellySpeed = 0;
 }
 
 // Body shape: elongated ovoid (Beroe-like)
@@ -56,6 +63,31 @@ function draw() {
   rotX += (targetRotX - rotX) * 0.05;
   rotY += (targetRotY - rotY) * 0.05;
 
+  // Wander: Perlin noise direction, faster on startle
+  let nx = noise(pos.x * 0.003, pos.z * 0.003, t * 0.25)       * 2 - 1;
+  let ny = noise(pos.x * 0.003, pos.z * 0.003, t * 0.25 + 100) * 2 - 1;
+  let nz = noise(pos.x * 0.003, pos.z * 0.003, t * 0.25 + 200) * 2 - 1;
+  targetDir = createVector(nx, ny * 0.25, nz).normalize();
+
+  let d         = pos.mag();
+  let bounds    = min(width, height) * 0.22;
+  let maxBounds = min(width, height) * 0.28;
+
+  if (d > bounds) {
+    let toCenter = pos.copy().mult(-1).normalize();
+    let factor   = map(d, bounds, maxBounds, 0.0, 0.4, true);
+    targetDir.lerp(toCenter, factor).normalize();
+  }
+
+  let targetSpeed = startled ? 4.5 : 0.8;
+  jellySpeed = lerp(jellySpeed, targetSpeed, 0.05);
+
+  vel.lerp(targetDir, 0.03).normalize().mult(jellySpeed);
+  pos.add(vel);
+
+  let hardLimit = min(width, height) * 0.30;
+  if (pos.mag() > hardLimit) pos.normalize().mult(hardLimit);
+
   background(0);
   blendMode(ADD);
 
@@ -65,6 +97,7 @@ function draw() {
   pointLight(color(180, 60, 90, 100), 0, -300, 200);
   pointLight(color(0, 80, 70, 80), 0, 100, -150);
 
+  translate(pos.x, pos.y, pos.z);
   rotateX(rotX);
   rotateY(rotY);
 
