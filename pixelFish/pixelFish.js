@@ -24,6 +24,14 @@ let liquid;
 let origPixelIdx = { left: null, right: null };
 let rainbowPg    = { left: null, right: null };
 
+// Competition flash rendering
+let competePg = { left: null, right: null };
+let divertPg  = { left: null, right: null };
+
+// Lo-fi pixelation buffer — tank is rendered to this small buffer then scaled up
+const PIX_SCALE = 3; // 3× pixelation — chunky lo-fi look
+let smallTankPg;
+
 // Net drop animation
 let netY = -1;
 const NET_SPEED = 7;
@@ -67,6 +75,77 @@ const rainbowColors = [
   '#4B0082', '#9400D3', '#FF1493', '#00CED1', '#FF69B4',
 ];
 
+// ─── LO.TONE — Nokia LCD palette + Bayer dither ──────────────────────────────
+// Exact palette from the lotone project
+const NOKIA_PALETTE = [
+  [155, 188,  15],  // #9BBC0F — lightest
+  [139, 172,  15],  // #8BAC0F
+  [ 45,  74,  46],  // #2d4a2e
+  [ 15,  37,   0],  // #0f2500 — darkest
+];
+const NOKIA_BRIGHT = NOKIA_PALETTE.map(([r,g,b]) => (r*0.299 + g*0.587 + b*0.114) / 255);
+
+// 4×4 Bayer ordered dither matrix — each value normalised to 0–1
+const BAYER4 = [
+   0,  8,  2, 10,
+  12,  4, 14,  6,
+   3, 11,  1,  9,
+  15,  7, 13,  5,
+].map(v => (v + 0.5) / 16);
+
+function applyNokiaDither(img) {
+  const w = img.width, h = img.height, px = img.pixels;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      const r = px[i], g = px[i+1], b = px[i+2];
+
+      // Green-biased luminance — keeps Nokia's natural green tint
+      const luma = (r * 0.12 + g * 0.76 + b * 0.12) / 255;
+
+      // Warm hues (reds) lift brightness slightly → competing fish = lighter Nokia tone
+      // Cool hues (blues) lower brightness slightly → diverting fish = darker Nokia tone
+      // This preserves hue intent within the 4-color palette
+      const warmth   = (r - b) / 512;
+      const brightness = luma + warmth * 0.18;
+
+      const threshold = BAYER4[(y & 3) * 4 + (x & 3)] - 0.5;
+      const dithered  = brightness + threshold * 0.28;
+
+      let best = 0, bestDist = Infinity;
+      for (let c = 0; c < 4; c++) {
+        const d = Math.abs(dithered - NOKIA_BRIGHT[c]);
+        if (d < bestDist) { bestDist = d; best = c; }
+      }
+      px[i] = NOKIA_PALETTE[best][0]; px[i+1] = NOKIA_PALETTE[best][1]; px[i+2] = NOKIA_PALETTE[best][2];
+    }
+  }
+}
+
+// ─── Competition helpers ───────────────────────────────────────────────────────
+const COMP_RADIUS = 80; // px — how close a fish must be to a food to be a "competitor"
+const COMP_MAX    = 6;  // normalisation ceiling for competitor count input
+
+// Count how many active fish are within COMP_RADIUS of a food particle
+function countCompetitors(food) {
+  let n = 0;
+  for (let f of fish) {
+    if (f.isDropping || f.isDying) continue;
+    if (p5.Vector.dist(f.position, food.position) < COMP_RADIUS) n++;
+  }
+  return n;
+}
+
+// Build a 4-element input block for one food slot: [sin, cos, dist, competitors]
+// Pass null for an empty slot (no food in range → neutral values)
+function foodInputBlock(food, fromPos, diag) {
+  if (!food) return [0, 0, 1, 0];
+  const ang  = Math.atan2(food.position.y - fromPos.y, food.position.x - fromPos.x);
+  const d    = p5.Vector.dist(fromPos, food.position);
+  const comp = constrain(countCompetitors(food) / COMP_MAX, 0, 1);
+  return [Math.sin(ang), Math.cos(ang), constrain(d / diag, 0, 1), comp];
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function createColoredFish(img, colorHex, size) {
   let pg = createGraphics(size, size);
@@ -97,6 +176,26 @@ function hsbToRgb(h, s, v) {
   return [Math.round((r+m)*255), Math.round((g+m)*255), Math.round((b+m)*255)];
 }
 
+// Pulse a fish image between hueMin and hueMax using a sine wave
+// hueMin/hueMax in degrees (0–360 HSB)
+function updateFlashPg(direction, hueMin, hueMax, pgObj) {
+  const SIZE = 60;
+  let pg = pgObj[direction];
+  pg.loadPixels();
+  pg.pixels.fill(0);
+  // Smooth pulse: oscillates between hueMin and hueMax
+  const t   = Math.sin(frameCount * 0.18) * 0.5 + 0.5; // 0→1→0
+  const hue = hueMin + t * (hueMax - hueMin);
+  for (let i of origPixelIdx[direction]) {
+    // Add small per-pixel hue jitter so the fish shimmers rather than solid-flashing
+    const hueJitter = (hue + ((i / 4) % SIZE) * 0.4) % 360;
+    const [r, g, b] = hsbToRgb(hueJitter, 100, 100);
+    pg.pixels[i] = r; pg.pixels[i+1] = g; pg.pixels[i+2] = b; pg.pixels[i+3] = 255;
+  }
+  pg.updatePixels();
+  return pg;
+}
+
 function updateRainbowPg(direction) {
   const SIZE = 60;
   let pg = rainbowPg[direction];
@@ -113,23 +212,31 @@ function updateRainbowPg(direction) {
 }
 
 // ─── NeuralNetwork ────────────────────────────────────────────────────────────
+// Inputs (12):
+//   [0–3]  nearest food:      sin(angle), cos(angle), distance, competitor count
+//   [4–7]  2nd nearest food:  sin(angle), cos(angle), distance, competitor count
+//   [8–9]  velocity x, y (normalised)
+//   [10]   ghrelin (hunger)
+//   [11]   leptin  (fullness)
+const NN_INPUTS = 12;
+
 class NeuralNetwork {
   constructor() {
-    this.W1 = Array.from({ length: 56 }, () => random(-1, 1)); // 8 hidden × 7 inputs
-    this.b1 = Array.from({ length: 8  }, () => random(-1, 1));
-    this.W2 = Array.from({ length: 16 }, () => random(-1, 1));
-    this.b2 = Array.from({ length: 2  }, () => random(-1, 1));
+    this.W1 = Array.from({ length: 8 * NN_INPUTS }, () => random(-1, 1));
+    this.b1 = Array.from({ length: 8             }, () => random(-1, 1));
+    this.W2 = Array.from({ length: 16            }, () => random(-1, 1));
+    this.b2 = Array.from({ length: 2             }, () => random(-1, 1));
   }
   forward(inputs) {
     this._x = inputs;
     this._h = Array.from({ length: 8 }, (_, r) => {
       let s = this.b1[r];
-      for (let c = 0; c < 7; c++) s += this.W1[r*7+c] * inputs[c];
+      for (let c = 0; c < NN_INPUTS; c++) s += this.W1[r * NN_INPUTS + c] * inputs[c];
       return Math.tanh(s);
     });
     this._y = Array.from({ length: 2 }, (_, r) => {
       let s = this.b2[r];
-      for (let c = 0; c < 8; c++) s += this.W2[r*8+c] * this._h[c];
+      for (let c = 0; c < 8; c++) s += this.W2[r * 8 + c] * this._h[c];
       return Math.tanh(s);
     });
     return [this._y[0], this._y[1]];
@@ -137,24 +244,22 @@ class NeuralNetwork {
   // Backpropagation — MSE loss, tanh derivative: d/dx tanh = 1 - tanh²
   backward(targets, lr = 0.01) {
     if (!this._x) return;
-    // Output layer deltas
     const d2 = this._y.map((y, i) => (y - targets[i]) * (1 - y * y));
     for (let r = 0; r < 2; r++) {
       this.b2[r] -= lr * d2[r];
       for (let c = 0; c < 8; c++)
-        this.W2[r*8+c] -= lr * d2[r] * this._h[c];
+        this.W2[r * 8 + c] -= lr * d2[r] * this._h[c];
     }
-    // Hidden layer deltas
     const dh = Array.from({ length: 8 }, (_, c) => {
       let s = 0;
-      for (let r = 0; r < 2; r++) s += d2[r] * this.W2[r*8+c];
+      for (let r = 0; r < 2; r++) s += d2[r] * this.W2[r * 8 + c];
       return s;
     });
     const d1 = this._h.map((h, i) => dh[i] * (1 - h * h));
     for (let r = 0; r < 8; r++) {
       this.b1[r] -= lr * d1[r];
-      for (let c = 0; c < 7; c++)
-        this.W1[r*7+c] -= lr * d1[r] * this._x[c];
+      for (let c = 0; c < NN_INPUTS; c++)
+        this.W1[r * NN_INPUTS + c] -= lr * d1[r] * this._x[c];
     }
   }
   copy() {
@@ -171,10 +276,16 @@ class NeuralNetwork {
 
 // ─── Fish ─────────────────────────────────────────────────────────────────────
 class Fish {
-  constructor(colorHex, brain) {
+  constructor(colorHex, brain, boldness) {
     this.size       = 35;
     this.colorHex   = colorHex;
     this.brain      = brain || new NeuralNetwork();
+    // boldness gene (0–1): inherited + mutated each generation
+    // 0 = always divert from contested food
+    // 1 = always double-down and charge contested food
+    this.boldness     = (boldness !== undefined) ? constrain(boldness, 0, 1) : random(0, 1);
+    this.isCompeting  = false; // true when actively charging contested food
+    this.isDiverting  = false; // true when actively choosing alternative food
     this.fitness    = 0;
     this.age        = 0;
     this.lifespan   = round(random(LIFESPAN_MIN, LIFESPAN_MAX));
@@ -200,23 +311,27 @@ class Fish {
   }
 
   think() {
-    let nearest = null, minDist = Infinity;
-    for (let f of foodParticles) {
-      if (f.isEaten) continue;
-      let d = p5.Vector.dist(this.position, f.position);
-      if (d < minDist) { minDist = d; nearest = f; }
-    }
-    const diag = dist(SX, WLINE, SX+SW, SBOT);
-    let inputs;
-    if (nearest) {
-      let ang = Math.atan2(nearest.position.y - this.position.y, nearest.position.x - this.position.x);
-      inputs = [Math.sin(ang), Math.cos(ang), constrain(minDist/diag,0,1),
-                this.velocity.x/this.maxSpeed, this.velocity.y/this.maxSpeed,
-                this.ghrelin, this.leptin];
-    } else {
-      inputs = [0, 0, 1, this.velocity.x/this.maxSpeed, this.velocity.y/this.maxSpeed,
-                this.ghrelin, this.leptin];
-    }
+    // Sort all available food by distance from this fish
+    const diag = dist(SX, WLINE, SX + SW, SBOT);
+    const sorted = foodParticles
+      .filter(f => !f.isEaten)
+      .map(f => ({ food: f, d: p5.Vector.dist(this.position, f.position) }))
+      .sort((a, b) => a.d - b.d);
+
+    const f1 = sorted[0] ? sorted[0].food : null;
+    const f2 = sorted[1] ? sorted[1].food : null;
+
+    // Build 12-element input vector:
+    // [food1 block (4)] [food2 block (4)] [vel.x, vel.y, ghrelin, leptin]
+    const inputs = [
+      ...foodInputBlock(f1, this.position, diag),
+      ...foodInputBlock(f2, this.position, diag),
+      this.velocity.x / this.maxSpeed,
+      this.velocity.y / this.maxSpeed,
+      this.ghrelin,
+      this.leptin,
+    ];
+
     // Perlin noise wander — baseline graceful movement
     let wanderOffset = map(noise(this.noiseOffset + frameCount * 0.004), 0, 1, -0.6, 0.6);
     let wanderAngle  = this.velocity.heading() + wanderOffset;
@@ -226,11 +341,31 @@ class Fish {
     let [ax, ay] = this.brain.forward(inputs);
     this.acceleration.add(createVector(ax, ay).mult(this.maxForce * 1.5));
 
-    // Backprop: teach NN to steer toward food when hungry
-    if (nearest && this.ghrelin >= HUNGER_THRESH) {
-      let toFood = p5.Vector.sub(nearest.position, this.position);
-      let d = toFood.mag();
+    // Backprop: competition decision driven by boldness gene
+    // Bold fish charge contested food; timid fish divert to alternatives
+    this.isCompeting = false;
+    this.isDiverting = false;
+    if (this.ghrelin >= HUNGER_THRESH && f1) {
+      const comp1 = countCompetitors(f1);
+      // Divert threshold scales with boldness:
+      //   boldness=0 → diverts if even 1 competitor present
+      //   boldness=1 → never diverts (always fights)
+      const divertAt = max(1, round((1 - this.boldness) * COMP_MAX));
+      const shouldDivert = comp1 >= divertAt && f2;
+
+      const target = shouldDivert ? f2 : f1;
+      this.isCompeting = !shouldDivert && comp1 > 1;
+      this.isDiverting = !!shouldDivert;
+
+      const toFood = p5.Vector.sub(target.position, this.position);
+      const d      = toFood.mag();
       this.brain.backward([toFood.x / d, toFood.y / d], 0.01);
+
+      // Bold fish charging contested food get a speed boost
+      if (this.isCompeting) {
+        const chargeForce = p5.Vector.sub(f1.position, this.position).setMag(this.maxForce * this.boldness * 2);
+        this.acceleration.add(chargeForce);
+      }
     }
     // Teach NN to ease off when dangerously full
     if (this.leptin > 0.7) {
@@ -398,6 +533,16 @@ class Fish {
       imageMode(CENTER);
       image(updateRainbowPg(d), 0, 0, this.size, this.size);
       noTint();
+    } else if (this.isCompeting && !this.isDropping) {
+      tint(255, alpha);
+      imageMode(CENTER);
+      image(updateFlashPg(d, 0, 35, competePg), 0, 0, this.size, this.size);
+      noTint();
+    } else if (this.isDiverting && !this.isDropping) {
+      tint(255, alpha);
+      imageMode(CENTER);
+      image(updateFlashPg(d, 200, 240, divertPg), 0, 0, this.size, this.size);
+      noTint();
     } else if (this.isDropping) {
       tint(255, 255, 255, 210);
       imageMode(CENTER);
@@ -413,6 +558,35 @@ class Fish {
       imageMode(CENTER);
       image(coloredFishImages[this.colorHex][d], 0, 0, this.size, this.size);
       noTint();
+    }
+
+    // ── Hormone bars (shown on active, non-dropping fish) ──
+    // Ghrelin (hunger) : orange bar above fish — rises when starving
+    // Leptin  (fullness): teal bar below fish  — rises after eating, lethal at 0.9
+    if (!this.isDropping && !this.isDying) {
+      const bw = this.size;         // bar width matches fish size
+      const bh = 3;
+      const bx = -bw / 2;
+
+      noStroke();
+      // Ghrelin bar — above fish
+      const gy = -this.size / 2 - bh - 2;
+      fill(40, 40, 40, 160);
+      rect(bx, gy, bw, bh, 1);
+      // Color shifts yellow → orange → red as hunger increases
+      const [gr, gg, gb] = hsbToRgb(map(this.ghrelin, 0, 1, 55, 0), 100, 90);
+      fill(gr, gg, gb, 220);
+      rect(bx, gy, bw * this.ghrelin, bh, 1);
+
+      // Leptin bar — below fish
+      const ly = this.size / 2 + 2;
+      fill(40, 40, 40, 160);
+      rect(bx, ly, bw, bh, 1);
+      // Color shifts teal → yellow → red as leptin approaches lethal threshold
+      const lRatio = this.leptin / LETHAL_LEPTIN;
+      const [lr, lg, lb] = hsbToRgb(map(lRatio, 0, 1, 180, 0), 100, 90);
+      fill(lr, lg, lb, 220);
+      rect(bx, ly, bw * constrain(lRatio, 0, 1), bh, 1);
     }
 
     pop();
@@ -508,16 +682,58 @@ function addGeneration() {
   }
 
   for (let i = 0; i < SPAWN_COUNT; i++) {
-    let brain;
+    let brain, boldness;
     if (pool.length > 0) {
-      brain = pool[floor(random(pool.length))].brain.copy();
+      const parent = pool[floor(random(pool.length))];
+      brain    = parent.brain.copy();
       brain.mutate();
+      // Inherit boldness with small Gaussian mutation — strategy evolves over generations
+      boldness = parent.boldness + randomGaussian(0, 0.08);
     }
-    fish.push(new Fish(rainbowColors[(fish.length + i) % rainbowColors.length], brain));
+    fish.push(new Fish(rainbowColors[(fish.length + i) % rainbowColors.length], brain, boldness));
   }
 
   generation++;
   netY = SY;
+}
+
+// ─── Legend ───────────────────────────────────────────────────────────────────
+function drawLegend() {
+  const items = [
+    { label: 'Leader',     draw: (x, y, s) => {
+        for (let i = 0; i < s; i++) {
+          const [r, g, b] = hsbToRgb((i / s) * 360, 100, 100);
+          fill(r, g, b); noStroke(); rect(x + i, y, 1, s);
+        }
+      }
+    },
+    { label: 'Competing',  draw: (x, y, s) => { fill(255, 80,  80);  noStroke(); rect(x, y, s, s); } },
+    { label: 'Diverting',  draw: (x, y, s) => { fill(80,  160, 255); noStroke(); rect(x, y, s, s); } },
+    { label: 'Active',     draw: (x, y, s) => { fill(255, 220, 100); noStroke(); rect(x, y, s, s); } },
+    { label: 'No kills',   draw: (x, y, s) => { fill(160, 160, 160); noStroke(); rect(x, y, s, s); } },
+  ];
+
+  const sw = 10, sh = 10, rowH = 14;
+  const lx = SX + 6;
+  const ly = SY + 6;
+
+  push();
+  // Background panel
+  noStroke();
+  fill(0, 0, 0, 120);
+  rect(lx - 3, ly - 3, 90, items.length * rowH + 6, 3);
+
+  textSize(8);
+  textFont('monospace');
+  textAlign(LEFT, TOP);
+
+  for (let i = 0; i < items.length; i++) {
+    const y = ly + i * rowH;
+    items[i].draw(lx, y, sw);
+    fill(210, 230, 210);
+    text(items[i].label, lx + sw + 4, y + 1);
+  }
+  pop();
 }
 
 // ─── p5 lifecycle ─────────────────────────────────────────────────────────────
@@ -546,8 +762,15 @@ function setup() {
     for (let i = 0; i < pg.pixels.length; i += 4)
       if (pg.pixels[i+3] > 0) origPixelIdx[dir].push(i);
     pg.remove();
-    rainbowPg[dir] = createGraphics(60, 60);
+    rainbowPg[dir]  = createGraphics(60, 60);
+    competePg[dir]  = createGraphics(60, 60);
+    divertPg[dir]   = createGraphics(60, 60);
   }
+
+  // Lo-fi pixelation buffer
+  smallTankPg = createGraphics(floor(SW / PIX_SCALE), floor(SH / PIX_SCALE));
+  smallTankPg.noSmooth();
+  noSmooth();
 
   for (let i = 0; i < 10; i++)
     fish.push(new Fish(rainbowColors[i % rainbowColors.length]));
@@ -622,6 +845,34 @@ function draw() {
     circle(rp.x, rp.y, rp.r * 2);
     pop();
   }
+
+  // ── Lo-fi post-process: pixelate + green tint ────────────────────────────
+  const snap = get(SX, SY, SW, SH);
+  // Scale down into small buffer (creates chunky pixels)
+  smallTankPg.image(snap, 0, 0, smallTankPg.width, smallTankPg.height);
+  // Apply green tint to small buffer pixels
+  smallTankPg.loadPixels();
+  const sp = smallTankPg.pixels;
+  for (let i = 0; i < sp.length; i += 4) {
+    sp[i]   = sp[i]   * 0.80;  // reduce red
+    sp[i+1] = sp[i+1] * 1.00;  // keep green
+    sp[i+2] = sp[i+2] * 0.72;  // reduce blue
+  }
+  smallTankPg.updatePixels();
+  // Draw back scaled up — noSmooth() makes it chunky pixel art
+  drawingContext.imageSmoothingEnabled = false;
+  image(smallTankPg, SX, SY, SW, SH);
+
+  // Scanlines
+  noStroke(); fill(0, 0, 0, 16);
+  for (let sy = SY; sy < SBOT; sy += 3) rect(SX, sy, SW, 1);
+
+  // Pixel grid
+  stroke(0, 0, 0, 8); strokeWeight(0.5);
+  for (let gx = SX; gx < SX + SW; gx += PIX_SCALE) line(gx, SY, gx, SBOT);
+  for (let gy = SY; gy < SBOT; gy += PIX_SCALE) line(SX, gy, SX + SW, gy);
+  noStroke();
+  // ─────────────────────────────────────────────────────────────────────────
 
   drawingContext.restore();
   // ─────────────────────────────────────────────────────────────────────────
