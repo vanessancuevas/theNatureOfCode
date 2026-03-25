@@ -9,29 +9,27 @@ const MASK_MODE   = 'circle'; // 'none' | 'circle' (snow globe) | 'oval' (Erlenm
 let SX, SY, SW, SH, WLINE, SBOT;
 
 function calcBounds() {
-  SX    = 0;
-  SY    = 0;
-  SW    = windowWidth;
-  SH    = windowHeight;
-  SBOT  = SH;
-  // WLINE sits 25% down inside the vessel circle so the top quarter is the feeding zone
-  const r = min(SW, SH) * 0.225;
-  WLINE = SH / 2 - r + r * 0.5; // circle top + 25% of circle height
+  const r = min(windowWidth, windowHeight) * 0.225;
+  SX    = windowWidth  / 2 - r;   // circle left edge
+  SY    = windowHeight / 2 - r;   // circle top edge
+  SW    = r * 2;                   // circle diameter
+  SH    = r * 2;
+  WLINE = SY + SH * 0.25;         // top 25% of circle = feeding zone
+  SBOT  = SY + SH;                 // circle bottom edge
 }
 
 // Returns geometry params for the active vessel mask
 function getMaskParams() {
-  const cx = SW / 2;
-  const cy = SH / 2;
-  // Circle
-  const r = min(SW, SH) * 0.225;
+  const cx = windowWidth  / 2;   // true canvas center
+  const cy = windowHeight / 2;
+  const r  = min(windowWidth, windowHeight) * 0.225;
   // Oval (Erlenmeyer): narrow neck top 1/3, wide round body bottom 2/3
-  const totH    = SH * 0.90;
-  const topY    = (SH - totH) / 2;
-  const botY    = topY + totH;
+  const totH    = r * 2 * 0.90;
+  const topY    = cy - totH / 2;
+  const botY    = cy + totH / 2;
   const neckBot = topY + totH * 0.33;
-  const neckHW  = SW * 0.08;
-  const bodyHW  = SW * 0.40;
+  const neckHW  = r * 0.16;
+  const bodyHW  = r * 0.80;
   const bodyCY  = neckBot + (botY - neckBot) * 0.5;
   return { cx, cy, r, topY, botY, neckBot, neckHW, bodyHW, bodyCY };
 }
