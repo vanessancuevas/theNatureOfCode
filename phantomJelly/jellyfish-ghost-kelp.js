@@ -147,30 +147,40 @@ class Jellyfish {
     this.nn.predict(inputs);
 
     // ── Wander steering (Nature of Code) ──────────────────────────────────
-    // Walk a random angle on a circle projected ahead of the vehicle
     let wanderChange = startled ? 0.45 : 0.15;
     this.wanderTheta += random(-wanderChange, wanderChange);
 
-    let wD = 60;                            // how far ahead to project the circle
-    let wR = startled ? 26 : 10;           // radius of the wander circle
+    let wD = 60;
+    let wR = startled ? 26 : 10;
     let ahead  = this.targetDir.copy().mult(wD);
     let wOff   = createVector(wR * cos(this.wanderTheta), 0, wR * sin(this.wanderTheta));
     let wSteer = p5.Vector.add(ahead, wOff).normalize();
     let sf     = startled ? 0.04 : 0.012;
     this.targetDir.lerp(wSteer, sf).normalize();
 
-    // ── Boundary: smoothly arc back toward centre near the edge ───────────
-    let d         = this.pos.mag();
-    let bounds    = min(width, height) * 0.22;
-    let maxBounds = min(width, height) * 0.28;
+    // ── Lookahead wall avoidance ───────────────────────────────────────────
+    // Project N frames ahead; if the future position exits the safe circle,
+    // steer tangentially (slide along the wall) — no more head-on sticking.
+    let safeR     = min(width, height) * 0.26;
+    let lookahead = startled ? 55 : 35;
+    let future    = p5.Vector.add(this.pos, this.vel.copy().normalize().mult(lookahead));
 
-    if (d > bounds) {
-      let toCenter = this.pos.copy().mult(-1).normalize();
-      let factor   = map(d, bounds, maxBounds, 0.0, 0.5, true);
-      this.targetDir.lerp(toCenter, factor).normalize();
+    if (future.mag() > safeR) {
+      // Tangent to the circle at the future point; pick the sign that keeps momentum
+      let radial  = future.copy().normalize();
+      let tangent = createVector(-radial.z, 0, radial.x);
+      if (tangent.dot(this.targetDir) < 0) tangent.mult(-1);
+      let proximity = map(future.mag(), safeR * 0.85, safeR, 0, 1, true);
+      this.targetDir.lerp(tangent, proximity * 0.7).normalize();
     }
 
+    // ── Pulse thrust + passive sink ────────────────────────────────────────
+    // Each bell contraction fires an upward impulse; gravity pulls down between pulses.
+    let gravity = createVector(0, 0.012, 0);                        // constant sink
+    let thrust  = createVector(0, -pulse * (startled ? 0.18 : 0.08), 0); // upward on contraction
+
     this.vel.lerp(this.targetDir, 0.02).normalize().mult(this.speed);
+    this.vel.add(thrust).add(gravity);
 
     this.pos.add(this.vel);
 
