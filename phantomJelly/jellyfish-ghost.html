@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Neural Jellyfish — Pepper's Ghost</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+  * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-user-select: none; }
   html, body {
     width: 100%; height: 100%;
     background: #000;
@@ -17,14 +17,54 @@
     justify-content: center;
     overflow: hidden;
   }
-  canvas {
-    display: block;
-    border-radius: 50%;   /* circular clip — corners stay black for the cone */
+  canvas { display: block; border-radius: 50%; }
+  #nav-dots {
+    position: fixed; bottom: 18px; left: 50%;
+    transform: translateX(-50%);
+    display: flex; gap: 8px; pointer-events: none;
   }
+  .dot {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: rgba(100,180,255,0.25);
+    transition: background 0.4s;
+  }
+  .dot.active { background: rgba(100,180,255,0.75); }
 </style>
 </head>
 <body>
+<div id="nav-dots">
+  <span class="dot active"></span>
+  <span class="dot"></span>
+  <span class="dot"></span>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.js"></script>
 <script src="jellyfish-ghost.js"></script>
+<script>
+  const files = ['jellyfish-ghost.html','jellyfish-phantom.html','jellyfish-comb.html'];
+  const idx = 0;
+  const base = location.pathname.replace(/[^\/]*$/, '');
+  function go(i) { location.href = base + files[((i % 3) + 3) % 3]; }
+
+  let wheelAccum = 0;
+  let touchStartX = null;
+  window.addEventListener('wheel', e => {
+    e.preventDefault();
+    wheelAccum += e.deltaX;
+    if (wheelAccum > 80)  { go(idx+1); wheelAccum=0; }
+    if (wheelAccum < -80) { go(idx-1); wheelAccum=0; }
+  }, { passive: false });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight') { e.preventDefault(); go(idx+1); }
+    if (e.key === 'ArrowLeft')  { e.preventDefault(); go(idx-1); }
+  }, true);
+  window.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
+  window.addEventListener('touchend', e => {
+    if (touchStartX===null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    if (dx < -50) go(idx+1);
+    if (dx >  50) go(idx-1);
+    touchStartX = null;
+  }, { passive: true });
+</script>
 </body>
 </html>

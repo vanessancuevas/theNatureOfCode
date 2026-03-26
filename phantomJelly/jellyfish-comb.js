@@ -47,6 +47,7 @@ let nnHiddenGanglia = [], nnOutputGanglia = [];
 
 function setup() {
   let S = min(windowWidth, windowHeight);
+  if (S < 50) S = min(screen.width, screen.height) * 0.8;
   createCanvas(S, S, WEBGL);
   colorMode(HSB, 360, 100, 100, 100);
   noStroke();
@@ -106,8 +107,8 @@ function bodyRadius(theta, phi) {
 
 function jellySurface(theta, phi) {
   let r = bodyRadius(theta, phi);
-  let R = 72;
-  let H = 115;
+  let R = 58;
+  let H = 92;
   return createVector(
     R * r * Math.cos(phi),
     H * (Math.cos(theta) * 0.85),
@@ -149,17 +150,23 @@ function draw() {
   let wSteer = p5.Vector.add(ahead, wOff).normalize();
   targetDir.lerp(wSteer, startled ? 0.04 : 0.012).normalize();
 
+  // ── Buoyancy: jellyfish naturally swim upward ──────────────────────────
+  targetDir.lerp(createVector(0, -1, 0), 0.006).normalize();
+
   // ── Flow field: Perlin-noise ocean current ─────────────────────────────
   let fx = noise(pos.x * 0.004, pos.z * 0.004, frameCount * 0.002) * 2 - 1;
+  let fy = noise(pos.y * 0.004 + 200, frameCount * 0.002 + 50) * 2 - 1;
   let fz = noise(pos.x * 0.004 + 100, pos.z * 0.004 + 100, frameCount * 0.002) * 2 - 1;
-  targetDir.lerp(createVector(fx, 0, fz).normalize(), 0.018).normalize();
+  targetDir.lerp(createVector(fx, fy * 0.4, fz).normalize(), 0.012).normalize();
 
   // ── Phototaxis: drift toward cursor / touch (ocelli response) ──────────
-  let lx = (touches.length > 0 ? touches[0].x : mouseX) - width / 2;
-  let ly = (touches.length > 0 ? touches[0].y : mouseY) - height / 2;
-  let toLight = p5.Vector.sub(createVector(lx, ly, 0), pos);
-  if (toLight.mag() > 20) {
-    targetDir.lerp(toLight.normalize(), 0.008).normalize();
+  if (mouseHasMoved || touches.length > 0) {
+    let lx = (touches.length > 0 ? touches[0].x : mouseX) - width / 2;
+    let ly = (touches.length > 0 ? touches[0].y : mouseY) - height / 2;
+    let toLight = p5.Vector.sub(createVector(lx, ly, 0), pos);
+    if (toLight.mag() > 20) {
+      targetDir.lerp(toLight.normalize(), 0.008).normalize();
+    }
   }
 
   // ── Lookahead wall avoidance ─────────────────────────────────────────────
@@ -428,6 +435,9 @@ function drawNNSignals() {
 
   noStroke();
 }
+
+let mouseHasMoved = false;
+function mouseMoved() { mouseHasMoved = true; }
 
 function mousePressed() {
   startleFrames = 180;

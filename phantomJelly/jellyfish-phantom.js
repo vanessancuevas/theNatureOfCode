@@ -175,17 +175,23 @@ class Jellyfish {
     let wSteer = p5.Vector.add(ahead, wOff).normalize();
     this.targetDir.lerp(wSteer, startled ? 0.04 : 0.012).normalize();
 
+    // ── Buoyancy: jellyfish naturally swim upward ──────────────────────────
+    this.targetDir.lerp(createVector(0, -1, 0), 0.006).normalize();
+
     // ── Flow field: Perlin-noise ocean current ─────────────────────────────
     let fx = noise(this.pos.x * 0.004, this.pos.z * 0.004, frameCount * 0.002) * 2 - 1;
+    let fy = noise(this.pos.y * 0.004 + 200, frameCount * 0.002 + 50) * 2 - 1;
     let fz = noise(this.pos.x * 0.004 + 100, this.pos.z * 0.004 + 100, frameCount * 0.002) * 2 - 1;
-    this.targetDir.lerp(createVector(fx, 0, fz).normalize(), 0.018).normalize();
+    this.targetDir.lerp(createVector(fx, fy * 0.4, fz).normalize(), 0.012).normalize();
 
     // ── Phototaxis: drift toward cursor / touch (ocelli response) ─────────
-    let lx = (touches.length > 0 ? touches[0].x : mouseX) - width / 2;
-    let ly = (touches.length > 0 ? touches[0].y : mouseY) - height / 2;
-    let toLight = p5.Vector.sub(createVector(lx, ly, 0), this.pos);
-    if (toLight.mag() > 20) {
-      this.targetDir.lerp(toLight.normalize(), 0.008).normalize();
+    if (mouseHasMoved || touches.length > 0) {
+      let lx = (touches.length > 0 ? touches[0].x : mouseX) - width / 2;
+      let ly = (touches.length > 0 ? touches[0].y : mouseY) - height / 2;
+      let toLight = p5.Vector.sub(createVector(lx, ly, 0), this.pos);
+      if (toLight.mag() > 20) {
+        this.targetDir.lerp(toLight.normalize(), 0.008).normalize();
+      }
     }
 
     // ── Lookahead wall avoidance ────────────────────────────────────────────
@@ -497,6 +503,7 @@ let particles = [];
 
 function setup() {
   let S = min(windowWidth, windowHeight);
+  if (S < 50) S = min(screen.width, screen.height) * 0.8;
   createCanvas(S, S, WEBGL);
   colorMode(HSB, 360, 100, 100, 255);
   jellies.push(new Jellyfish(0, 0, 0));
@@ -512,6 +519,9 @@ function draw() {
     j.render();
   }
 }
+
+let mouseHasMoved = false;
+function mouseMoved() { mouseHasMoved = true; }
 
 function mousePressed() {
   for (let j of jellies) j.startleFrames = 180;
