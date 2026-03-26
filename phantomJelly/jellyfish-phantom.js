@@ -42,7 +42,8 @@ class Jellyfish {
     this.cycle = random(TWO_PI);
     this.baseR = random(7.5, 11);
     this.startleFrames = 0;
-    this.colorBlend = 0; // 0 = gray signals, 1 = vivid red signals
+    this.colorBlend = 0;
+    this.wanderTheta = random(TWO_PI);
 
     this.nodes = [];
     this.edges = [];
@@ -154,27 +155,38 @@ class Jellyfish {
       cos(frameCount * 0.005 + this.cycle)
     ];
 
-    let out = this.nn.predict(inputs);
-    let steer = createVector(out[0], out[1], out[2]).mult(0.02);
-    this.targetDir.add(steer).normalize();
+    // NN runs for signal-dot visuals only
+    this.nn.predict(inputs);
 
-    let d = this.pos.mag();
-    let bounds    = min(width, height) * 0.22;
-    let maxBounds = min(width, height) * 0.28;
+    // ── 3D Wander (Nature of Code) ─────────────────────────────────────────
+    let wanderChange = startled ? 0.45 : 0.15;
+    this.wanderTheta += random(-wanderChange, wanderChange);
 
-    if (d > bounds) {
-      let toCenter = this.pos.copy().mult(-1).normalize();
-      let factor = map(d, bounds, maxBounds, 0.0, 0.4, true);
-      this.targetDir.lerp(toCenter, factor).normalize();
+    let wD = 60, wR = startled ? 26 : 10;
+    let forward  = this.targetDir.copy().normalize();
+    let worldUp  = abs(forward.y) > 0.99 ? createVector(1, 0, 0) : createVector(0, 1, 0);
+    let right    = p5.Vector.cross(forward, worldUp).normalize();
+    let circleUp = p5.Vector.cross(right, forward).normalize();
+    let ahead    = forward.copy().mult(wD);
+    let wOff     = p5.Vector.add(
+      p5.Vector.mult(right,    wR * cos(this.wanderTheta)),
+      p5.Vector.mult(circleUp, wR * sin(this.wanderTheta))
+    );
+    let wSteer = p5.Vector.add(ahead, wOff).normalize();
+    this.targetDir.lerp(wSteer, startled ? 0.04 : 0.012).normalize();
+
+    // ── Lookahead wall avoidance ────────────────────────────────────────────
+    let safeR    = min(width, height) * 0.26;
+    let future   = p5.Vector.add(this.pos, this.vel.copy().normalize().mult(startled ? 55 : 35));
+    if (future.mag() > safeR) {
+      let radial  = future.copy().normalize();
+      let tangent = createVector(-radial.z, 0, radial.x);
+      if (tangent.dot(this.targetDir) < 0) tangent.mult(-1);
+      let proximity = map(future.mag(), safeR * 0.85, safeR, 0, 1, true);
+      this.targetDir.lerp(tangent, proximity * 0.7).normalize();
     }
 
-    let downLimit = map(d, bounds, maxBounds, 0.1, 1.0, true);
-    this.targetDir.y = min(this.targetDir.y, downLimit);
-    this.targetDir.normalize();
-
-    this.vel.lerp(this.targetDir, 0.02).normalize();
-    this.vel.y = min(this.vel.y, downLimit);
-    this.vel.normalize().mult(this.speed);
+    this.vel.lerp(this.targetDir, 0.02).normalize().mult(this.speed);
 
     this.pos.add(this.vel);
 
