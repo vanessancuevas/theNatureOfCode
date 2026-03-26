@@ -152,10 +152,16 @@ class Jellyfish {
 
     let wD = 60;
     let wR = startled ? 26 : 10;
-    let ahead  = this.targetDir.copy().mult(wD);
-    let wOff   = createVector(wR * cos(this.wanderTheta), 0, wR * sin(this.wanderTheta));
+    let ahead = this.targetDir.copy().mult(wD);
+    // Y component uses a slower independent angle so vertical drift is gentler
+    // than horizontal — jellyfish wander mostly horizontal, occasionally dip/rise
+    let wOff = createVector(
+      wR * cos(this.wanderTheta),
+      wR * 0.35 * sin(this.wanderTheta * 0.6),
+      wR * sin(this.wanderTheta)
+    );
     let wSteer = p5.Vector.add(ahead, wOff).normalize();
-    let sf     = startled ? 0.04 : 0.012;
+    let sf = startled ? 0.04 : 0.012;
     this.targetDir.lerp(wSteer, sf).normalize();
 
     // ── Lookahead wall avoidance ───────────────────────────────────────────
@@ -174,13 +180,7 @@ class Jellyfish {
       this.targetDir.lerp(tangent, proximity * 0.7).normalize();
     }
 
-    // ── Pulse thrust + passive sink ────────────────────────────────────────
-    // Each bell contraction fires an upward impulse; gravity pulls down between pulses.
-    let gravity = createVector(0, 0.012, 0);                        // constant sink
-    let thrust  = createVector(0, -pulse * (startled ? 0.18 : 0.08), 0); // upward on contraction
-
     this.vel.lerp(this.targetDir, 0.02).normalize().mult(this.speed);
-    this.vel.add(thrust).add(gravity);
 
     this.pos.add(this.vel);
 
