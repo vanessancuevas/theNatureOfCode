@@ -146,28 +146,46 @@ class Jellyfish {
     ];
     this.nn.predict(inputs);
 
-    // ── Wander steering (Nature of Code) ──────────────────────────────────
-    // Walk a random angle on a circle projected ahead of the vehicle
+    // ── Wander steering (proper 3D — Nature of Code) ──────────────────────
+    // The offset circle is perpendicular to the current travel direction,
+    // so the jelly naturally wanders diagonally as it turns.
     let wanderChange = startled ? 0.45 : 0.15;
     this.wanderTheta += random(-wanderChange, wanderChange);
 
-    let wD = 60;                            // how far ahead to project the circle
-    let wR = startled ? 26 : 10;           // radius of the wander circle
-    let ahead  = this.targetDir.copy().mult(wD);
-    let wOff   = createVector(wR * cos(this.wanderTheta), 0, wR * sin(this.wanderTheta));
+    let wD = 60;
+    let wR = startled ? 26 : 10;
+
+    // Build two axes perpendicular to targetDir (the circle's local plane)
+    let forward = this.targetDir.copy().normalize();
+    let worldUp = abs(forward.y) > 0.99
+      ? createVector(1, 0, 0)   // fallback when swimming straight up/down
+      : createVector(0, 1, 0);
+    let right    = p5.Vector.cross(forward, worldUp).normalize();
+    let circleUp = p5.Vector.cross(right, forward).normalize();
+
+    let ahead  = forward.copy().mult(wD);
+    let wOff   = p5.Vector.add(
+      p5.Vector.mult(right,    wR * cos(this.wanderTheta)),
+      p5.Vector.mult(circleUp, wR * sin(this.wanderTheta))
+    );
     let wSteer = p5.Vector.add(ahead, wOff).normalize();
-    let sf     = startled ? 0.04 : 0.012;
+    let sf = startled ? 0.04 : 0.012;
     this.targetDir.lerp(wSteer, sf).normalize();
 
-    // ── Boundary: smoothly arc back toward centre near the edge ───────────
-    let d         = this.pos.mag();
-    let bounds    = min(width, height) * 0.22;
-    let maxBounds = min(width, height) * 0.28;
+    // ── Lookahead wall avoidance ───────────────────────────────────────────
+    // Project N frames ahead; if the future position exits the safe circle,
+    // steer tangentially (slide along the wall) — no more head-on sticking.
+    let safeR     = min(width, height) * 0.26;
+    let lookahead = startled ? 55 : 35;
+    let future    = p5.Vector.add(this.pos, this.vel.copy().normalize().mult(lookahead));
 
-    if (d > bounds) {
-      let toCenter = this.pos.copy().mult(-1).normalize();
-      let factor   = map(d, bounds, maxBounds, 0.0, 0.5, true);
-      this.targetDir.lerp(toCenter, factor).normalize();
+    if (future.mag() > safeR) {
+      // Tangent to the circle at the future point; pick the sign that keeps momentum
+      let radial  = future.copy().normalize();
+      let tangent = createVector(-radial.z, 0, radial.x);
+      if (tangent.dot(this.targetDir) < 0) tangent.mult(-1);
+      let proximity = map(future.mag(), safeR * 0.85, safeR, 0, 1, true);
+      this.targetDir.lerp(tangent, proximity * 0.7).normalize();
     }
 
     this.vel.lerp(this.targetDir, 0.02).normalize().mult(this.speed);

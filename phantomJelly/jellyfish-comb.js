@@ -14,18 +14,19 @@ let targetRotX = 0.3, targetRotY = 0;
 let startleFrames = 0;
 let colorBlend    = 0;
 
-// Wander physics
 let pos, vel, targetDir, jellySpeed;
+let wanderTheta = 0;
 
 function setup() {
   let S = min(windowWidth, windowHeight);
   createCanvas(S, S, WEBGL);
   colorMode(HSB, 360, 100, 100, 100);
   noStroke();
-  pos       = createVector(0, 0, 0);
-  vel       = createVector(0, 0, 0);
-  targetDir = createVector(1, 0, 0);
+  pos        = createVector(0, 0, 0);
+  vel        = createVector(0, 0, 0);
+  targetDir  = createVector(1, 0, 0);
   jellySpeed = 0;
+  wanderTheta = random(TWO_PI);
 }
 
 // Body shape: elongated ovoid (Beroe-like)
@@ -63,25 +64,35 @@ function draw() {
   rotX += (targetRotX - rotX) * 0.05;
   rotY += (targetRotY - rotY) * 0.05;
 
-  // Wander: Perlin noise direction, faster on startle
-  let nx = noise(pos.x * 0.003, pos.z * 0.003, t * 0.25)       * 2 - 1;
-  let ny = noise(pos.x * 0.003, pos.z * 0.003, t * 0.25 + 100) * 2 - 1;
-  let nz = noise(pos.x * 0.003, pos.z * 0.003, t * 0.25 + 200) * 2 - 1;
-  targetDir = createVector(nx, ny * 0.25, nz).normalize();
+  // ── 3D Wander (Nature of Code) ──────────────────────────────────────────
+  let wanderChange = startled ? 0.45 : 0.15;
+  wanderTheta += random(-wanderChange, wanderChange);
 
-  let d         = pos.mag();
-  let bounds    = min(width, height) * 0.10;
-  let maxBounds = min(width, height) * 0.15;
+  let wD = 50, wR = startled ? 20 : 8;
+  let forward  = targetDir.copy().normalize();
+  let worldUp  = abs(forward.y) > 0.99 ? createVector(1, 0, 0) : createVector(0, 1, 0);
+  let right    = p5.Vector.cross(forward, worldUp).normalize();
+  let circleUp = p5.Vector.cross(right, forward).normalize();
+  let ahead    = forward.copy().mult(wD);
+  // Suppress vertical wander — comb body is tall (H=115) and clips at top/bottom
+  let wOff = p5.Vector.add(
+    p5.Vector.mult(right,    wR * cos(wanderTheta)),
+    p5.Vector.mult(circleUp, wR * 0.15 * sin(wanderTheta))
+  );
+  let wSteer = p5.Vector.add(ahead, wOff).normalize();
+  targetDir.lerp(wSteer, startled ? 0.04 : 0.012).normalize();
 
-  if (d > bounds) {
-    let toCenter = pos.copy().mult(-1).normalize();
-    let factor   = map(d, bounds, maxBounds, 0.0, 0.6, true);
-    targetDir.lerp(toCenter, factor).normalize();
+  // ── Lookahead wall avoidance ─────────────────────────────────────────────
+  // Tighter safeR to keep tall body inside circle
+  let safeR   = min(width, height) * 0.12;
+  let future  = p5.Vector.add(pos, vel.copy().normalize().mult(startled ? 40 : 25));
+  if (future.mag() > safeR) {
+    let radial  = future.copy().normalize();
+    let tangent = createVector(-radial.z, 0, radial.x);
+    if (tangent.dot(targetDir) < 0) tangent.mult(-1);
+    let proximity = map(future.mag(), safeR * 0.85, safeR, 0, 1, true);
+    targetDir.lerp(tangent, proximity * 0.7).normalize();
   }
-
-  // Suppress vertical wandering — body is tall and clips top/bottom
-  targetDir.y *= 0.2;
-  targetDir.normalize();
 
   let targetSpeed = startled ? 2.5 : 0.6;
   jellySpeed = lerp(jellySpeed, targetSpeed, 0.05);
@@ -89,7 +100,6 @@ function draw() {
   vel.lerp(targetDir, 0.03).normalize().mult(jellySpeed);
   pos.add(vel);
 
-  // Hard clamp — tight enough that ±115 body height stays inside circle
   let hardLimit = min(width, height) * 0.16;
   if (pos.mag() > hardLimit) pos.normalize().mult(hardLimit);
 

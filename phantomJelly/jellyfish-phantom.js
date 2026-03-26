@@ -40,9 +40,10 @@ class Jellyfish {
     this.targetDir = createVector(0, -1, 0);
     this.speed = 0;
     this.cycle = random(TWO_PI);
-    this.baseR = random(7.5, 11);
+    this.baseR = random(18, 24);
     this.startleFrames = 0;
-    this.colorBlend = 0; // 0 = gray signals, 1 = vivid red signals
+    this.colorBlend = 0;
+    this.wanderTheta = random(TWO_PI);
 
     this.nodes = [];
     this.edges = [];
@@ -133,11 +134,11 @@ class Jellyfish {
     if (startled) this.startleFrames--;
     this.colorBlend = startled ? 1.0 : lerp(this.colorBlend, 0, 0.008);
 
-    this.cycle += startled ? 0.07 : 0.012;
+    this.cycle += startled ? 0.09 : 0.018;
     let phase = (this.cycle % TWO_PI) / TWO_PI;
     let pulse = 0;
-    if (phase < 0.4) {
-      pulse = sin((phase * PI) / 0.4);
+    if (phase < 0.35) {
+      pulse = sin((phase * PI) / 0.35);
     }
 
     let targetSpeed = startled
@@ -154,27 +155,38 @@ class Jellyfish {
       cos(frameCount * 0.005 + this.cycle)
     ];
 
-    let out = this.nn.predict(inputs);
-    let steer = createVector(out[0], out[1], out[2]).mult(0.02);
-    this.targetDir.add(steer).normalize();
+    // NN runs for signal-dot visuals only
+    this.nn.predict(inputs);
 
-    let d = this.pos.mag();
-    let bounds    = min(width, height) * 0.22;
-    let maxBounds = min(width, height) * 0.28;
+    // ── 3D Wander (Nature of Code) ─────────────────────────────────────────
+    let wanderChange = startled ? 0.45 : 0.15;
+    this.wanderTheta += random(-wanderChange, wanderChange);
 
-    if (d > bounds) {
-      let toCenter = this.pos.copy().mult(-1).normalize();
-      let factor = map(d, bounds, maxBounds, 0.0, 0.4, true);
-      this.targetDir.lerp(toCenter, factor).normalize();
+    let wD = 60, wR = startled ? 26 : 10;
+    let forward  = this.targetDir.copy().normalize();
+    let worldUp  = abs(forward.y) > 0.99 ? createVector(1, 0, 0) : createVector(0, 1, 0);
+    let right    = p5.Vector.cross(forward, worldUp).normalize();
+    let circleUp = p5.Vector.cross(right, forward).normalize();
+    let ahead    = forward.copy().mult(wD);
+    let wOff     = p5.Vector.add(
+      p5.Vector.mult(right,    wR * cos(this.wanderTheta)),
+      p5.Vector.mult(circleUp, wR * sin(this.wanderTheta))
+    );
+    let wSteer = p5.Vector.add(ahead, wOff).normalize();
+    this.targetDir.lerp(wSteer, startled ? 0.04 : 0.012).normalize();
+
+    // ── Lookahead wall avoidance ────────────────────────────────────────────
+    let safeR    = min(width, height) * 0.26;
+    let future   = p5.Vector.add(this.pos, this.vel.copy().normalize().mult(startled ? 55 : 35));
+    if (future.mag() > safeR) {
+      let radial  = future.copy().normalize();
+      let tangent = createVector(-radial.z, 0, radial.x);
+      if (tangent.dot(this.targetDir) < 0) tangent.mult(-1);
+      let proximity = map(future.mag(), safeR * 0.85, safeR, 0, 1, true);
+      this.targetDir.lerp(tangent, proximity * 0.7).normalize();
     }
 
-    let downLimit = map(d, bounds, maxBounds, 0.1, 1.0, true);
-    this.targetDir.y = min(this.targetDir.y, downLimit);
-    this.targetDir.normalize();
-
-    this.vel.lerp(this.targetDir, 0.02).normalize();
-    this.vel.y = min(this.vel.y, downLimit);
-    this.vel.normalize().mult(this.speed);
+    this.vel.lerp(this.targetDir, 0.02).normalize().mult(this.speed);
 
     this.pos.add(this.vel);
 
@@ -197,19 +209,16 @@ class Jellyfish {
     }
 
     this.nodes.forEach((n) => {
-      let lat = n.v * HALF_PI;
+      // Organic noise matching moon jelly approach
+      let nval = map(noise(cos(n.theta) * 0.5, sin(n.theta) * 0.5, this.cycle * 0.5 + n.v), 0, 1, -3, 3);
 
-      // Traveling ripple wave — driven by this.cycle so it respects idle/startle pace
-      let ripple = sin(lat * 2 - this.cycle * 4) * (this.baseR * 0.05);
-
-      // Circular noise — wraps cleanly around bell, slow drift
-      let nval = map(noise(cos(n.theta) * 0.5, sin(n.theta) * 0.5, this.cycle * 0.5 + n.v), 0, 1, -4, 4);
-
+      // Same contraction strength as moon jelly (0.4) — clear inward squeeze on pulse
       let rProfile = n.v * 1.25 + 0.5 * sin(n.v * PI) - 0.15 * sin(n.v * TWO_PI);
-      let r = this.baseR * 2.2 * rProfile * (1 - 0.15 * pulse * n.v) + nval + ripple * n.v;
+      let r = this.baseR * 2.2 * rProfile * (1 - 0.4 * pulse * n.v) + nval;
 
+      // Same yStretch as moon jelly (0.3) — elongates upward on contraction
       let yProfile = 1 - pow(n.v, 2.0) + 0.2 * sin(n.v * PI * 2.5);
-      let yStretch = 1 + 0.2 * pulse;
+      let yStretch = 1 + 0.3 * pulse;
 
       n.x = r * cos(n.theta);
       n.y = -this.baseR * 1.5 * yProfile * yStretch;
