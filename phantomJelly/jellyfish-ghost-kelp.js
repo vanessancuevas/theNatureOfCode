@@ -445,7 +445,21 @@ class Kelp {
     this.d = map(abs(z), 0, 150, 0, 1);
     this.noiseSeed = random(1000);
     this.segments  = floor(map(this.d, 0, 1, 22, 10));
-    this.baseLen   = map(this.d, 0, 1, 40, 15);
+
+    let R = min(width, height) * 0.5;
+
+    // How far the stalk can grow upward before hitting the circle top at this x
+    // Circle eq: x²+y²=R² → topY = -sqrt(R²-x²)  (negative = above centre)
+    let availH = y + sqrt(max(0, R * R - x * x));
+
+    // Fit baseLen so the total stalk (geometric series) fills 90% of availH
+    // sum = baseLen * (1 - 0.95^n) / 0.05
+    let geoSum = (1 - Math.pow(0.95, this.segments)) / 0.05;
+    this.baseLen = constrain((availH * 0.90) / geoSum, 8, 42);
+
+    // Max frond reach before hitting the circle wall sideways
+    this.maxFrondLen = max(15, R - abs(x));
+
     // HSB greens matching the original's vibe
     this.baseH = random(125, 145);
     this.tipH  = random(90, 112);
@@ -500,8 +514,8 @@ class Kelp {
         stroke(lh, lerp(s, 65, 0.4), lerp(b, 75, 0.4), a);
         noFill();
 
-        let leafLen = len * map(this.d, 0, 1, 4.5, 2);
-        // Bezier in WEBGL needs xyz per point (12 args)
+        // Cap frond length so it can't punch through the circle wall
+        let leafLen = min(len * map(this.d, 0, 1, 4.5, 2), this.maxFrondLen);
         // cp1y/endY use `side` so frond alternates up/down, matching 2D original
         let cp1x = leafLen * 0.4;
         let cp1y = side * leafLen * 0.3;
@@ -535,13 +549,14 @@ function setup() {
 
 function spawnKelp() {
   kelps = [];
-  let S = min(width, height);
-  let half = S * 0.44;
-  // ~20 plants like original's floor(width/35)
-  let numKelp = floor(S / 35);
+  let R = min(width, height) * 0.5;
+  let numKelp = floor(min(width, height) / 35);
   for (let i = 0; i < numKelp; i++) {
-    let x = random(-half, half);
-    let y = random(S * 0.32, S * 0.46);  // near bottom edge of circle
+    // Keep x within 88% of radius so fronds always have room
+    let x = random(-R * 0.88, R * 0.88);
+    // Root sits on (or just inside) the circle bottom for this x
+    let circleBot = sqrt(max(0, R * R - x * x));
+    let y = random(circleBot * 0.80, circleBot * 0.98);
     let z = random(-150, 150);
     kelps.push(new Kelp(x, y, z));
   }
