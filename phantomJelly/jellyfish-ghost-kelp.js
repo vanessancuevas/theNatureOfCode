@@ -446,19 +446,28 @@ class Kelp {
     this.noiseSeed = random(1000);
     this.segments  = floor(map(this.d, 0, 1, 22, 10));
 
-    let R = min(width, height) * 0.5;
+    let S   = min(width, height);
+    let R   = S * 0.5;
+    // Camera z-distance (same formula as draw())
+    let cz  = (S / 2.0) / Math.tan(Math.PI / 6);   // tan(30°)
+    // Objects at z>0 appear larger in screen-space by this factor.
+    // Shrink the allowed world-radius accordingly so nothing bleeds outside the CSS circle.
+    let perspScale = cz / (cz - z);
+    // Extra safety margin for sway and frond curvature
+    let R_eff = (R / perspScale) * 0.82;
 
-    // How far the stalk can grow upward before hitting the circle top at this x
-    // Circle eq: x²+y²=R² → topY = -sqrt(R²-x²)  (negative = above centre)
-    let availH = y + sqrt(max(0, R * R - x * x));
+    // How far the stalk can grow upward before hitting the circle at this x
+    // (using the perspective-corrected radius)
+    let chordH = sqrt(max(0, R_eff * R_eff - x * x));
+    let availH = y + chordH;
 
-    // Fit baseLen so the total stalk (geometric series) fills 90% of availH
-    // sum = baseLen * (1 - 0.95^n) / 0.05
-    let geoSum = (1 - Math.pow(0.95, this.segments)) / 0.05;
-    this.baseLen = constrain((availH * 0.90) / geoSum, 8, 42);
+    // Fit baseLen so the total stalk (geometric series) fills 88% of availH
+    // sum = baseLen * (1 - 0.95^n) / (1 - 0.95)
+    let geoSum  = (1 - Math.pow(0.95, this.segments)) / 0.05;
+    this.baseLen = constrain((availH * 0.88) / geoSum, 6, 38);
 
     // Max frond reach before hitting the circle wall sideways
-    this.maxFrondLen = max(15, R - abs(x));
+    this.maxFrondLen = max(10, (R_eff - abs(x)) * 0.80);
 
     // HSB greens matching the original's vibe
     this.baseH = random(125, 145);
@@ -549,18 +558,25 @@ function setup() {
 
 function spawnKelp() {
   kelps = [];
-  let R = min(width, height) * 0.5;
-  let numKelp = floor(min(width, height) / 35);
-  for (let i = 0; i < numKelp; i++) {
-    // Keep x within 88% of radius so fronds always have room
-    let x = random(-R * 0.88, R * 0.88);
-    // Root sits on (or just inside) the circle bottom for this x
-    let circleBot = sqrt(max(0, R * R - x * x));
-    let y = random(circleBot * 0.80, circleBot * 0.98);
+  let S   = min(width, height);
+  let R   = S * 0.5;
+  let cz  = (S / 2.0) / Math.tan(Math.PI / 6);
+  let num = floor(S / 35);
+
+  for (let i = 0; i < num; i++) {
     let z = random(-150, 150);
+    // Use the same perspective-corrected radius as the constructor
+    let perspScale = cz / (cz - z);
+    let R_eff = (R / perspScale) * 0.82;
+
+    // Root x stays well inside the effective radius so fronds have room
+    let x = random(-R_eff * 0.85, R_eff * 0.85);
+    // Root y placed on the bottom arc of the effective circle
+    let chordBot = sqrt(max(0, R_eff * R_eff - x * x));
+    let y = random(chordBot * 0.78, chordBot * 0.96);
     kelps.push(new Kelp(x, y, z));
   }
-  // Sort back-to-front so foreground plants overdraw background ones
+  // Sort back-to-front so foreground plants overdraw background
   kelps.sort((a, b) => a.z - b.z);
 }
 
