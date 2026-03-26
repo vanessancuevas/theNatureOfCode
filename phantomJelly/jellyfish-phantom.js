@@ -40,7 +40,7 @@ class Jellyfish {
     this.targetDir = createVector(0, -1, 0);
     this.speed = 0;
     this.cycle = random(TWO_PI);
-    this.baseR = random(7.5, 11);
+    this.baseR = random(18, 24);
     this.startleFrames = 0;
     this.colorBlend = 0;
     this.wanderTheta = random(TWO_PI);
