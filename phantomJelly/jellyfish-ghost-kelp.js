@@ -461,13 +461,13 @@ class Kelp {
     let chordH = sqrt(max(0, R_eff * R_eff - x * x));
     let availH = y + chordH;
 
-    // Fit baseLen so the total stalk (geometric series) fills 88% of availH
-    // sum = baseLen * (1 - 0.95^n) / (1 - 0.95)
+    // Fit baseLen so the stalk fills the bottom ~45% of available height —
+    // keeps kelp in the lower portion of the circle, away from the jelly
     let geoSum  = (1 - Math.pow(0.95, this.segments)) / 0.05;
-    this.baseLen = constrain((availH * 0.88) / geoSum, 6, 38);
+    this.baseLen = constrain((availH * 0.45) / geoSum, 5, 28);
 
     // Max frond reach before hitting the circle wall sideways
-    this.maxFrondLen = max(10, (R_eff - abs(x)) * 0.80);
+    this.maxFrondLen = max(10, (R_eff - abs(x)) * 0.70);
 
     // HSB greens matching the original's vibe
     this.baseH = random(125, 145);
@@ -499,8 +499,10 @@ class Kelp {
     let a = map(this.d, 0, 1, 230, 110);
     stroke(h, s, b, a);
 
-    let noiseAngle = map(noise(nSeed, frameCount * 0.003), 0, 1, -0.15, 0.15);
-    let waveAngle  = sin(frameCount * 0.015 + this.x * 0.01 + depth * 0.1) * 0.08;
+    // Small sway — large angles accumulate over 22 segments and push the tip
+    // sideways past the circle wall
+    let noiseAngle = map(noise(nSeed, frameCount * 0.003), 0, 1, -0.05, 0.05);
+    let waveAngle  = sin(frameCount * 0.015 + this.x * 0.01 + depth * 0.1) * 0.03;
     rotate(noiseAngle + waveAngle);
 
     line(0, 0, 0, 0, -len, 0);
