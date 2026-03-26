@@ -2,6 +2,213 @@
 // Circular canvas, Pepper's Ghost build.
 // Click / tap to startle — speeds up cilia beat and rotation.
 
+// ── Prey draw functions (RGB colorMode, called inside push/pop) ────────────
+
+function drawPreyCopepod(sz, col, alpha) {
+  let [r,g,b] = col;
+  stroke(r*0.6, g*0.6, b*0.6, alpha); strokeWeight(sz*0.06);
+  fill(r, g, b, alpha);
+  beginShape();
+  vertex(0, -sz);
+  bezierVertex(sz*0.5,-sz*0.5, sz*0.6,sz*0.3, 0,sz*0.8);
+  bezierVertex(-sz*0.6,sz*0.3, -sz*0.5,-sz*0.5, 0,-sz);
+  endShape(CLOSE);
+  ellipse(0, -sz*0.8, sz*0.55, sz*0.55);
+  stroke(r, g, b, alpha*0.8); strokeWeight(sz*0.05); noFill();
+  line(sz*0.15,-sz, sz*0.8,-sz*1.8);
+  line(-sz*0.15,-sz, -sz*0.8,-sz*1.8);
+  for (let i = 0; i < 5; i++) {
+    let ly = -sz*0.2 + i*sz*0.22;
+    line(sz*0.55, ly, sz*1.1, ly+sz*0.15);
+    line(-sz*0.55, ly, -sz*1.1, ly+sz*0.15);
+  }
+  line(sz*0.1, sz*0.75, sz*0.3, sz*1.3);
+  line(-sz*0.1, sz*0.75, -sz*0.3, sz*1.3);
+}
+
+function drawPreyFishEgg(sz, col, alpha) {
+  let [r,g,b] = col;
+  noStroke();
+  fill(r, g, b, alpha*40/255); ellipse(0,0, sz*2.2, sz*2.2);
+  fill(r, g, b, alpha*70/255); ellipse(0,0, sz*1.8, sz*1.8);
+  fill(r, g, b, alpha*120/255); ellipse(0,0, sz*1.4, sz*1.4);
+  fill(255, 220, 80, alpha*200/255); ellipse(sz*0.3,-sz*0.3, sz*0.45,sz*0.45);
+  noFill(); stroke(r*0.7,g*0.7,b*0.7, alpha*160/255); strokeWeight(sz*0.08);
+  arc(0, sz*0.1, sz*0.9, sz*0.9, PI*0.2, PI*1.1);
+  noFill(); stroke(r,g,b, alpha*60/255); strokeWeight(sz*0.04);
+  ellipse(0,0, sz*2.1, sz*2.1);
+}
+
+function drawPreyDiatom(sz, col, alpha) {
+  let [r,g,b] = col;
+  fill(r, g, b, alpha*200/255);
+  stroke(r*0.5,g*0.5,b*0.5, alpha); strokeWeight(sz*0.05);
+  beginShape();
+  for (let a = 0; a < TWO_PI; a += 0.15) {
+    let rx = sz*(1.0 + 0.12*cos(a*8));
+    let ry = sz*(0.38 + 0.04*cos(a*8));
+    vertex(rx*cos(a), ry*sin(a));
+  }
+  endShape(CLOSE);
+  stroke(r*0.4,g*0.4,b*0.4, alpha*180/255); strokeWeight(sz*0.07);
+  line(-sz*0.95, 0, sz*0.95, 0);
+  strokeWeight(sz*0.03);
+  for (let i = -8; i <= 8; i++) {
+    let x = i*sz*0.12;
+    let hw = sz*0.32*sqrt(max(0, 1-(x/(sz))**2));
+    line(x,-hw, x,hw);
+  }
+}
+
+function drawPreyAmphipod(sz, col, alpha) {
+  let [r,g,b] = col;
+  stroke(r*0.55,g*0.55,b*0.55, alpha); strokeWeight(sz*0.06);
+  fill(r,g,b, alpha);
+  for (let i = 0; i < 7; i++) {
+    let t = i/7;
+    let bx = sin(t*1.2)*sz*0.5;
+    let by = (t-0.4)*sz*2.2;
+    let sw = sz*(0.55-t*0.25);
+    ellipse(bx, by, sw*2, sz*0.38);
+  }
+  stroke(r,g,b, alpha); strokeWeight(sz*0.04); noFill();
+  line(0,-sz*0.9, sz*0.7,-sz*1.8);
+  line(0,-sz*0.9, -sz*0.4,-sz*1.9);
+  for (let i = 0; i < 4; i++) {
+    let ly = -sz*0.1 + i*sz*0.28;
+    let bx = sin((i/4)*1.2)*sz*0.5;
+    line(bx+sz*0.45, ly, bx+sz*1.05, ly+sz*0.3);
+    line(bx-sz*0.45, ly, bx-sz*1.05, ly+sz*0.3);
+  }
+  let tx = sin(1.2)*sz*0.5;
+  line(tx+sz*0.15, sz*0.9, tx+sz*0.5, sz*1.5);
+  line(tx-sz*0.15, sz*0.9, tx-sz*0.5, sz*1.5);
+}
+
+function drawPreyMedusaLarva(sz, col, alpha) {
+  let [r,g,b] = col;
+  noStroke(); fill(r,g,b, alpha*30/255); ellipse(0,0, sz*2.4, sz*2.4);
+  fill(r,g,b, alpha*160/255);
+  stroke(r*0.6,g*0.6,b*0.6, alpha*120/255); strokeWeight(sz*0.04);
+  for (let i = 0; i < 8; i++) {
+    let a = (i/8)*TWO_PI;
+    push(); rotate(a); ellipse(0,-sz*0.85, sz*0.32,sz*0.7); pop();
+  }
+  fill(r,g,b, alpha*200/255); noStroke(); ellipse(0,0, sz*0.7, sz*0.7);
+  stroke(r,g,b, alpha*100/255); strokeWeight(sz*0.04);
+  for (let i = 0; i < 8; i++) {
+    let a = (i/8)*TWO_PI; line(0,0, cos(a)*sz*0.85, sin(a)*sz*0.85);
+  }
+  stroke(r,g,b, alpha*80/255); strokeWeight(sz*0.03); noFill();
+  for (let i = 0; i < 8; i++) {
+    let a = ((i+0.5)/8)*TWO_PI;
+    let tx = cos(a)*sz, ty = sin(a)*sz;
+    beginShape();
+    vertex(cos(a)*sz*0.35, sin(a)*sz*0.35);
+    bezierVertex(tx*0.6,ty*0.6, tx*1.1+cos(a+1)*sz*0.4,ty*1.1+sin(a+1)*sz*0.4, tx*1.3,ty*1.3);
+    endShape();
+  }
+}
+
+class Prey {
+  constructor() {
+    const TYPES = [
+      { name: 'Copepod',      col: [85,  212, 240] },
+      { name: 'Fish egg',     col: [245, 220, 80]  },
+      { name: 'Diatom',       col: [68,  200, 104] },
+      { name: 'Amphipod',     col: [240, 112, 64]  },
+      { name: 'Medusa larva', col: [170, 119, 240] },
+    ];
+    let t = random(TYPES);
+    this.type = t.name;
+    this.col  = t.col;
+    this.sz   = random(4, 7);
+    let ang = random(TWO_PI);
+    let dist = random(40, min(width, height) * 0.18);
+    this.pos = createVector(cos(ang)*dist, random(-50, 50), sin(ang)*dist);
+    this.vel = createVector(0, 0, 0);
+    this.targetDir = p5.Vector.random3D();
+    this.speed = random(0.2, 0.5);
+    this.wanderTheta = random(TWO_PI);
+    this.rot = random(TWO_PI);
+    this.alpha = 0;
+    this.captured = false;
+    this.captureTimer = 0;
+    this.stunned = false;
+    this.stunnedTimer = 0;
+  }
+
+  update() {
+    if (this.captured) {
+      this.captureTimer++;
+      this.alpha = max(0, map(this.captureTimer, 0, 30, 255, 0));
+      return;
+    }
+    if (this.stunned) {
+      this.alpha = min(255, this.alpha + 15);
+      this.stunnedTimer++;
+      this.pos.add(createVector(random(-0.5,0.5), random(-0.3,0.3), random(-0.5,0.5)));
+      return;
+    }
+    this.alpha = min(255, this.alpha + 10);
+    this.wanderTheta += random(-0.15, 0.15);
+    let wD = 30, wR = 6;
+    let fwd = this.targetDir.copy().normalize();
+    let wUp = abs(fwd.y) > 0.99 ? createVector(1,0,0) : createVector(0,1,0);
+    let wRt = p5.Vector.cross(fwd, wUp).normalize();
+    let wCUp = p5.Vector.cross(wRt, fwd).normalize();
+    let wSteer = p5.Vector.add(
+      fwd.copy().mult(wD),
+      p5.Vector.add(p5.Vector.mult(wRt, wR*cos(this.wanderTheta)),
+                    p5.Vector.mult(wCUp, wR*sin(this.wanderTheta)))
+    ).normalize();
+    this.targetDir.lerp(wSteer, 0.03).normalize();
+    this.targetDir.lerp(createVector(0,-1,0), 0.002).normalize();
+    // Evade: steer away from comb jelly's predicted future position (NoC Ch. 6)
+    if (typeof pos !== 'undefined' && typeof vel !== 'undefined') {
+      let dToJelly = this.pos.dist(pos);
+      let detectionR = 220;
+      if (dToJelly < detectionR) {
+        let T = min(dToJelly / max(jellySpeed, 0.5), 40);
+        let jellyFuture = p5.Vector.add(pos, p5.Vector.mult(vel, T));
+        let evadeDir = p5.Vector.sub(this.pos, jellyFuture).normalize();
+        let evadeStr = map(dToJelly, 0, detectionR, 0.15, 0.0, true);
+        this.targetDir.lerp(evadeDir, evadeStr).normalize();
+      }
+    }
+    this.vel.lerp(this.targetDir, 0.05).normalize().mult(this.speed);
+    this.pos.add(this.vel);
+    let lim = min(width, height) * 0.24;
+    if (this.pos.mag() > lim) this.pos.normalize().mult(lim * 0.9);
+    this.rot += 0.008;
+  }
+
+  isDone() { return this.captured && this.captureTimer > 35; }
+
+  draw() {
+    push();
+    translate(this.pos.x, this.pos.y, this.pos.z);
+    rotate(this.rot);
+    colorMode(RGB, 255);
+    blendMode(BLEND);
+    if (this.stunned) {
+      let pulse = 128 + 127 * sin(this.stunnedTimer * 0.5);
+      noStroke(); fill(180, 220, 255, pulse * this.alpha / 255);
+      ellipse(0, 0, this.sz * 5, this.sz * 5);
+      fill(220, 240, 255, pulse * 0.6 * this.alpha / 255);
+      ellipse(0, 0, this.sz * 3, this.sz * 3);
+    }
+    if      (this.type === 'Copepod')      drawPreyCopepod(this.sz, this.col, this.alpha);
+    else if (this.type === 'Fish egg')     drawPreyFishEgg(this.sz, this.col, this.alpha);
+    else if (this.type === 'Diatom')       drawPreyDiatom(this.sz, this.col, this.alpha);
+    else if (this.type === 'Amphipod')     drawPreyAmphipod(this.sz, this.col, this.alpha);
+    else                                   drawPreyMedusaLarva(this.sz, this.col, this.alpha);
+    colorMode(HSB, 360, 100, 100, 100);
+    blendMode(ADD);
+    pop();
+  }
+}
+
 class NeuralNetwork {
   constructor(inputNodes, hiddenNodes, outputNodes) {
     this.w1 = Array.from({ length: hiddenNodes }, () =>
@@ -35,9 +242,13 @@ let targetRotX = 0.3, targetRotY = 0;
 
 let startleFrames = 0;
 let colorBlend    = 0;
+let stingPrey     = null;
+let stingFrames   = 0;
 
 let pos, vel, targetDir, jellySpeed;
 let wanderTheta = 0;
+let preyList = [];
+let clickTimes = [];
 
 // Neural network
 let nn;
@@ -169,6 +380,59 @@ function draw() {
     }
   }
 
+  // ── Prey seek ──────────────────────────────────────────────────────────
+  if (preyList.length > 0) {
+    let nearest = null, nearestDist = Infinity;
+    for (let pr of preyList) {
+      if (!pr.captured) {
+        let d = pos.dist(pr.pos);
+        if (d < nearestDist) { nearestDist = d; nearest = pr; }
+      }
+    }
+    if (nearest) {
+      // Pursue: predict prey's future position (NoC Ch. 6)
+      let pursueT = min(nearestDist / max(jellySpeed, 0.5), 60);
+      let futurePreyPos = p5.Vector.add(nearest.pos, p5.Vector.mult(nearest.vel, pursueT));
+      targetDir.lerp(p5.Vector.sub(futurePreyPos, pos).normalize(), 0.05).normalize();
+      // Sting: fire nematocysts when prey enters range
+      if (nearestDist < 130 && !nearest.stunned) {
+        nearest.stunned = true;
+        stingPrey = nearest;
+        stingFrames = 30;
+        let zapDir = p5.Vector.sub(nearest.pos, pos).normalize();
+        for (let sn = 0; sn < nnNodes.length; sn++) {
+          let n = nnNodes[sn];
+          let nDir = createVector(n.x - pos.x, n.y - pos.y, n.z - pos.z).normalize();
+          if (nDir.dot(zapDir) > 0.4) {
+            let nb = nnAdjList[sn];
+            if (nb && nb.length > 0) {
+              nnSignals.push({ a: sn, b: random(nb), p: 0,
+                speed: random(0.15, 0.4), life: floor(random(2, 5)),
+                intensity: 1.0, zap: true });
+            }
+          }
+        }
+      }
+      // Eat: absorb stunned prey when close
+      if (nearestDist < 65 && nearest.stunned) {
+        nearest.captured = true;
+        colorBlend = 1.0;
+        startleFrames = max(startleFrames, 60);
+        stingPrey = null;
+        stingFrames = 0;
+        for (let sn = 0; sn < nnNodes.length; sn++) {
+          let nb = nnAdjList[sn];
+          if (nb && nb.length > 0) {
+            nnSignals.push({ a: sn, b: random(nb), p: random(1),
+              speed: random(0.08, 0.22), life: floor(random(3, 6)),
+              intensity: 1.0, capture: true });
+          }
+        }
+      }
+    }
+    if (stingFrames > 0) stingFrames--;
+  }
+
   // ── Lookahead wall avoidance ─────────────────────────────────────────────
   // Tighter safeR to keep tall body inside circle
   let safeR   = min(width, height) * 0.12;
@@ -231,7 +495,9 @@ function draw() {
       s.p = 0;
     }
   }
-  if (nnSignals.length > 300) nnSignals.splice(0, nnSignals.length - 300);
+  if (nnSignals.length > 600) nnSignals.splice(0, nnSignals.length - 600);
+
+  for (let pr of preyList) pr.update();
 
   background(0);
   blendMode(ADD);
@@ -241,6 +507,33 @@ function draw() {
   ambientLight(200, 40, 8);
   pointLight(color(180, 60, 90, 100), 0, -300, 200);
   pointLight(color(0, 80, 70, 80), 0, 100, -150);
+
+  for (let i = preyList.length - 1; i >= 0; i--) {
+    preyList[i].draw();
+    if (preyList[i].isDone()) preyList.splice(i, 1);
+  }
+
+  // ── Sting arc ─────────────────────────────────────────────────────────
+  if (stingPrey && stingFrames > 0) {
+    let arcEnd = stingPrey.pos;
+    let toPreyDir = p5.Vector.sub(arcEnd, pos).normalize();
+    let arcStart = p5.Vector.add(pos, toPreyDir.copy().mult(60));
+    let arcAlpha = map(stingFrames, 0, 30, 0, 200);
+    colorMode(RGB, 255);
+    noFill(); stroke(160, 220, 255, arcAlpha); strokeWeight(1.5);
+    beginShape();
+    for (let ti = 0; ti <= 12; ti++) {
+      let tp = ti / 12;
+      let jit = sin(tp * PI) * 8;
+      vertex(
+        lerp(arcStart.x, arcEnd.x, tp) + random(-jit, jit),
+        lerp(arcStart.y, arcEnd.y, tp) + random(-jit, jit),
+        lerp(arcStart.z, arcEnd.z, tp) + random(-jit, jit)
+      );
+    }
+    endShape();
+    colorMode(HSB, 360, 100, 100, 100);
+  }
 
   translate(pos.x, pos.y, pos.z);
   rotateX(rotX);
@@ -391,7 +684,9 @@ function drawNNSignals() {
     let ty = lerp(nA.y, nB.y, max(0, s.p - 0.5));
     let tz = lerp(nA.z, nB.z, max(0, s.p - 0.5));
     let hue = (185 + t * hueSpeed) % 360;
-    stroke(hue, lerp(55, 100, colorBlend), 100, s.intensity * 80);
+    if (s.zap) { stroke(200, 50, 100, s.intensity * 120); }
+    else if (s.capture) { stroke(320, 100, 100, s.intensity * 80); }
+    else { stroke(hue, lerp(55, 100, colorBlend), 100, s.intensity * 80); }
     vertex(tx, ty, tz);
     vertex(x,  y,  z);
   }
@@ -404,7 +699,9 @@ function drawNNSignals() {
     let nA = nnNodes[s.a], nB = nnNodes[s.b];
     if (!nA || !nB) continue;
     let hue = (185 + t * hueSpeed) % 360;
-    stroke(hue, lerp(50, 100, colorBlend), 100, s.intensity * 100);
+    if (s.zap) { stroke(200, 50, 100, s.intensity * 140); }
+    else if (s.capture) { stroke(320, 100, 100, s.intensity * 100); }
+    else { stroke(hue, lerp(50, 100, colorBlend), 100, s.intensity * 100); }
     vertex(lerp(nA.x, nB.x, s.p), lerp(nA.y, nB.y, s.p), lerp(nA.z, nB.z, s.p));
   }
   endShape();
@@ -441,6 +738,13 @@ function mouseMoved() { mouseHasMoved = true; }
 
 function mousePressed() {
   startleFrames = 180;
+  let now = millis();
+  clickTimes.push(now);
+  clickTimes = clickTimes.filter(t => now - t < 600);
+  if (clickTimes.length >= 3) {
+    preyList.push(new Prey());
+    clickTimes = [];
+  }
 }
 
 function touchStarted() {
