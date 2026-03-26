@@ -2,6 +2,28 @@
 // Circular canvas, Pepper's Ghost build.
 // Click / tap to startle — speeds up cilia beat and rotation.
 
+class NeuralNetwork {
+  constructor(inputNodes, hiddenNodes, outputNodes) {
+    this.w1 = Array.from({ length: hiddenNodes }, () =>
+      Array.from({ length: inputNodes }, () => random(-1, 1))
+    );
+    this.w2 = Array.from({ length: outputNodes }, () =>
+      Array.from({ length: hiddenNodes }, () => random(-1, 1))
+    );
+    this.hidden  = new Array(hiddenNodes).fill(0);
+    this.outputs = new Array(outputNodes).fill(0);
+  }
+  predict(inputs) {
+    this.hidden = this.w1.map(w =>
+      Math.tanh(w.reduce((s, v, i) => s + v * inputs[i], 0))
+    );
+    this.outputs = this.w2.map(w =>
+      Math.tanh(w.reduce((s, v, i) => s + v * this.hidden[i], 0))
+    );
+    return this.outputs;
+  }
+}
+
 const NUM_ROWS     = 8;
 const CILIA_PER_ROW = 60;
 const BODY_ROWS    = 80;
@@ -17,6 +39,12 @@ let colorBlend    = 0;
 let pos, vel, targetDir, jellySpeed;
 let wanderTheta = 0;
 
+// Neural network
+let nn;
+let nnNodes = [], nnEdges = [], nnAdjList = [];
+let nnSignals = [];
+let nnHiddenGanglia = [], nnOutputGanglia = [];
+
 function setup() {
   let S = min(windowWidth, windowHeight);
   createCanvas(S, S, WEBGL);
@@ -27,6 +55,45 @@ function setup() {
   targetDir  = createVector(1, 0, 0);
   jellySpeed = 0;
   wanderTheta = random(TWO_PI);
+
+  // ── Build NN mesh from body surface ──────────────────────────────────────
+  nn = new NeuralNetwork(6, 10, 3);
+
+  const MESH_T = 12, MESH_P = 8;
+  for (let i = 0; i < MESH_T; i++) {
+    for (let j = 0; j < MESH_P; j++) {
+      let theta = map(i, 0, MESH_T - 1, 0.18, Math.PI - 0.18);
+      let phi   = (j / MESH_P) * TWO_PI;
+      let pt    = jellySurface(theta, phi);
+      nnNodes.push({ x: pt.x, y: pt.y, z: pt.z });
+    }
+  }
+
+  nnAdjList = Array.from({ length: nnNodes.length }, () => []);
+  for (let i = 0; i < nnNodes.length; i++) {
+    for (let j = i + 1; j < nnNodes.length; j++) {
+      let a = nnNodes[i], b = nnNodes[j];
+      let d = Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2 + (a.z-b.z)**2);
+      if (d < 58) {
+        nnEdges.push([i, j]);
+        nnAdjList[i].push(j);
+        nnAdjList[j].push(i);
+      }
+    }
+  }
+
+  // Hidden ganglia spread evenly through mesh
+  let step = floor(nnNodes.length / 10);
+  for (let i = 0; i < 10; i++) nnHiddenGanglia.push((i * step + 3) % nnNodes.length);
+
+  // Output ganglia near the equator (mid-latitude rows)
+  let midNodes = nnNodes.map((_, i) => i).filter(i => {
+    let row = floor(i / MESH_P);
+    return row >= 4 && row <= 7;
+  });
+  for (let i = 0; i < 3; i++) {
+    nnOutputGanglia.push(midNodes[floor(i * midNodes.length / 3)]);
+  }
 }
 
 // Body shape: elongated ovoid (Beroe-like)
@@ -103,6 +170,49 @@ function draw() {
   let hardLimit = min(width, height) * 0.16;
   if (pos.mag() > hardLimit) pos.normalize().mult(hardLimit);
 
+  // ── NN: predict + update signals ─────────────────────────────────────────
+  let inputs = [
+    pos.x / width, pos.y / height, pos.z / width,
+    noise(frameCount * 0.005) * 2 - 1,
+    sin(frameCount * 0.005), cos(frameCount * 0.005)
+  ];
+  nn.predict(inputs);
+
+  for (let i = 0; i < nn.hidden.length; i++) {
+    let act = nn.hidden[i];
+    if (random() < abs(act) * 0.15) {
+      let start = nnHiddenGanglia[i];
+      let neighbors = nnAdjList[start];
+      if (neighbors && neighbors.length > 0) {
+        nnSignals.push({ a: start, b: random(neighbors), p: 0,
+          speed: random(0.04, 0.10), life: floor(random(3, 8)), intensity: abs(act) });
+      }
+    }
+  }
+  for (let i = 0; i < nn.outputs.length; i++) {
+    let act = nn.outputs[i];
+    if (random() < abs(act) * 0.2) {
+      let start = nnOutputGanglia[i];
+      let neighbors = nnAdjList[start];
+      if (neighbors && neighbors.length > 0) {
+        nnSignals.push({ a: start, b: random(neighbors), p: 0,
+          speed: random(0.05, 0.15), life: floor(random(4, 10)), intensity: abs(act) });
+      }
+    }
+  }
+  for (let i = nnSignals.length - 1; i >= 0; i--) {
+    let s = nnSignals[i];
+    s.p += s.speed;
+    if (s.p >= 1) {
+      s.a = s.b; s.life--;
+      if (s.life <= 0) { nnSignals.splice(i, 1); continue; }
+      let nb = nnAdjList[s.a];
+      if (nb && nb.length > 0) s.b = random(nb);
+      s.p = 0;
+    }
+  }
+  if (nnSignals.length > 300) nnSignals.splice(0, nnSignals.length - 300);
+
   background(0);
   blendMode(ADD);
 
@@ -119,6 +229,7 @@ function draw() {
   drawBody();
   drawCiliaRows();
   drawInternalOrgan();
+  drawNNSignals();
 }
 
 function drawBody() {
@@ -231,6 +342,77 @@ function drawCiliaRows() {
       pop();
     }
   }
+  noStroke();
+}
+
+function drawNNSignals() {
+  let startled = startleFrames > 0 || colorBlend > 0.05;
+  let hueSpeed = lerp(20, 400, colorBlend);
+
+  // Dim mesh edges
+  stroke(185, 40, 45, 18);
+  strokeWeight(0.6);
+  beginShape(LINES);
+  for (let e of nnEdges) {
+    let a = nnNodes[e[0]], b = nnNodes[e[1]];
+    vertex(a.x, a.y, a.z);
+    vertex(b.x, b.y, b.z);
+  }
+  endShape();
+
+  // Travelling signals — hue spins with cilia on startle
+  strokeWeight(2.5);
+  beginShape(LINES);
+  for (let s of nnSignals) {
+    let nA = nnNodes[s.a], nB = nnNodes[s.b];
+    if (!nA || !nB) continue;
+    let x  = lerp(nA.x, nB.x, s.p),  y  = lerp(nA.y, nB.y, s.p),  z  = lerp(nA.z, nB.z, s.p);
+    let tx = lerp(nA.x, nB.x, max(0, s.p - 0.5));
+    let ty = lerp(nA.y, nB.y, max(0, s.p - 0.5));
+    let tz = lerp(nA.z, nB.z, max(0, s.p - 0.5));
+    let hue = (185 + t * hueSpeed) % 360;
+    stroke(hue, lerp(55, 100, colorBlend), 100, s.intensity * 80);
+    vertex(tx, ty, tz);
+    vertex(x,  y,  z);
+  }
+  endShape();
+
+  // Signal dots
+  strokeWeight(4);
+  beginShape(POINTS);
+  for (let s of nnSignals) {
+    let nA = nnNodes[s.a], nB = nnNodes[s.b];
+    if (!nA || !nB) continue;
+    let hue = (185 + t * hueSpeed) % 360;
+    stroke(hue, lerp(50, 100, colorBlend), 100, s.intensity * 100);
+    vertex(lerp(nA.x, nB.x, s.p), lerp(nA.y, nB.y, s.p), lerp(nA.z, nB.z, s.p));
+  }
+  endShape();
+
+  // Hidden ganglia
+  strokeWeight(7);
+  beginShape(POINTS);
+  for (let i = 0; i < nnHiddenGanglia.length; i++) {
+    let n = nnNodes[nnHiddenGanglia[i]];
+    let act = abs(nn.hidden[i]);
+    let hue = (185 + t * hueSpeed) % 360;
+    stroke(hue, 60, 80, 40 + act * 55);
+    vertex(n.x, n.y, n.z);
+  }
+  endShape();
+
+  // Output ganglia
+  strokeWeight(9);
+  beginShape(POINTS);
+  for (let i = 0; i < nnOutputGanglia.length; i++) {
+    let n = nnNodes[nnOutputGanglia[i]];
+    let act = abs(nn.outputs[i]);
+    let hue = (185 + t * hueSpeed) % 360;
+    stroke(hue, 80, 100, 40 + act * 60);
+    vertex(n.x, n.y, n.z);
+  }
+  endShape();
+
   noStroke();
 }
 
