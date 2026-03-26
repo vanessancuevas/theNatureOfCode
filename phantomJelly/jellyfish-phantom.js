@@ -134,11 +134,11 @@ class Jellyfish {
     if (startled) this.startleFrames--;
     this.colorBlend = startled ? 1.0 : lerp(this.colorBlend, 0, 0.008);
 
-    this.cycle += startled ? 0.07 : 0.012;
+    this.cycle += startled ? 0.09 : 0.018;
     let phase = (this.cycle % TWO_PI) / TWO_PI;
     let pulse = 0;
-    if (phase < 0.4) {
-      pulse = sin((phase * PI) / 0.4);
+    if (phase < 0.35) {
+      pulse = sin((phase * PI) / 0.35);
     }
 
     let targetSpeed = startled
@@ -209,19 +209,16 @@ class Jellyfish {
     }
 
     this.nodes.forEach((n) => {
-      let lat = n.v * HALF_PI;
+      // Organic noise matching moon jelly approach
+      let nval = map(noise(cos(n.theta) * 0.5, sin(n.theta) * 0.5, this.cycle * 0.5 + n.v), 0, 1, -3, 3);
 
-      // Traveling ripple wave — driven by this.cycle so it respects idle/startle pace
-      let ripple = sin(lat * 2 - this.cycle * 4) * (this.baseR * 0.05);
-
-      // Circular noise — wraps cleanly around bell, slow drift
-      let nval = map(noise(cos(n.theta) * 0.5, sin(n.theta) * 0.5, this.cycle * 0.5 + n.v), 0, 1, -4, 4);
-
+      // Same contraction strength as moon jelly (0.4) — clear inward squeeze on pulse
       let rProfile = n.v * 1.25 + 0.5 * sin(n.v * PI) - 0.15 * sin(n.v * TWO_PI);
-      let r = this.baseR * 2.2 * rProfile * (1 - 0.15 * pulse * n.v) + nval + ripple * n.v;
+      let r = this.baseR * 2.2 * rProfile * (1 - 0.4 * pulse * n.v) + nval;
 
+      // Same yStretch as moon jelly (0.3) — elongates upward on contraction
       let yProfile = 1 - pow(n.v, 2.0) + 0.2 * sin(n.v * PI * 2.5);
-      let yStretch = 1 + 0.2 * pulse;
+      let yStretch = 1 + 0.3 * pulse;
 
       n.x = r * cos(n.theta);
       n.y = -this.baseR * 1.5 * yProfile * yStretch;
