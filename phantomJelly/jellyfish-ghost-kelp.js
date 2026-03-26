@@ -47,6 +47,7 @@ class Jellyfish {
     this.baseR = 48;
     this.startleFrames = 0;
     this.colorBlend = 0; // 1 = full pink, 0 = light blue; fades slowly after startle
+    this.wanderTheta = random(TWO_PI); // wander angle walks randomly each frame
 
     this.nodes = [];
     this.edges = [];
@@ -137,39 +138,39 @@ class Jellyfish {
       : map(pulse, 0, 1, 0.1, 1.8);
     this.speed = lerp(this.speed, targetSpeed, 0.08);
 
+    // NN still runs — activations drive the signal-dot visuals only
     let inputs = [
-      this.pos.x / width,
-      this.pos.y / height,
-      this.pos.z / width,
+      this.pos.x / width, this.pos.y / height, this.pos.z / width,
       noise(frameCount * 0.005) * 2 - 1,
-      sin(frameCount * 0.005),
-      cos(frameCount * 0.005)
+      sin(frameCount * 0.005), cos(frameCount * 0.005)
     ];
+    this.nn.predict(inputs);
 
-    let out = this.nn.predict(inputs);
-    // Dampen NN steering in idle so drift is gentle
-    let steerStrength = startled ? 0.02 : 0.006;
-    let steer = createVector(out[0], out[1], out[2]).mult(steerStrength);
-    this.targetDir.add(steer).normalize();
+    // ── Wander steering (Nature of Code) ──────────────────────────────────
+    // Walk a random angle on a circle projected ahead of the vehicle
+    let wanderChange = startled ? 0.45 : 0.15;
+    this.wanderTheta += random(-wanderChange, wanderChange);
 
-    // Soft steering back toward centre when approaching circle edge
-    let d = this.pos.mag();
+    let wD = 60;                            // how far ahead to project the circle
+    let wR = startled ? 26 : 10;           // radius of the wander circle
+    let ahead  = this.targetDir.copy().mult(wD);
+    let wOff   = createVector(wR * cos(this.wanderTheta), 0, wR * sin(this.wanderTheta));
+    let wSteer = p5.Vector.add(ahead, wOff).normalize();
+    let sf     = startled ? 0.04 : 0.012;
+    this.targetDir.lerp(wSteer, sf).normalize();
+
+    // ── Boundary: smoothly arc back toward centre near the edge ───────────
+    let d         = this.pos.mag();
     let bounds    = min(width, height) * 0.22;
     let maxBounds = min(width, height) * 0.28;
 
     if (d > bounds) {
       let toCenter = this.pos.copy().mult(-1).normalize();
-      let factor = map(d, bounds, maxBounds, 0.0, 0.4, true);
+      let factor   = map(d, bounds, maxBounds, 0.0, 0.5, true);
       this.targetDir.lerp(toCenter, factor).normalize();
     }
 
-    let downLimit = map(d, bounds, maxBounds, 0.1, 1.0, true);
-    this.targetDir.y = min(this.targetDir.y, downLimit);
-    this.targetDir.normalize();
-
-    this.vel.lerp(this.targetDir, 0.02).normalize();
-    this.vel.y = min(this.vel.y, downLimit);
-    this.vel.normalize().mult(this.speed);
+    this.vel.lerp(this.targetDir, 0.02).normalize().mult(this.speed);
 
     this.pos.add(this.vel);
 
