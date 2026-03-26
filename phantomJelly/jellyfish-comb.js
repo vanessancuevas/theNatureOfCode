@@ -149,6 +149,19 @@ function draw() {
   let wSteer = p5.Vector.add(ahead, wOff).normalize();
   targetDir.lerp(wSteer, startled ? 0.04 : 0.012).normalize();
 
+  // ── Flow field: Perlin-noise ocean current ─────────────────────────────
+  let fx = noise(pos.x * 0.004, pos.z * 0.004, frameCount * 0.002) * 2 - 1;
+  let fz = noise(pos.x * 0.004 + 100, pos.z * 0.004 + 100, frameCount * 0.002) * 2 - 1;
+  targetDir.lerp(createVector(fx, 0, fz).normalize(), 0.018).normalize();
+
+  // ── Phototaxis: drift toward cursor / touch (ocelli response) ──────────
+  let lx = (touches.length > 0 ? touches[0].x : mouseX) - width / 2;
+  let ly = (touches.length > 0 ? touches[0].y : mouseY) - height / 2;
+  let toLight = p5.Vector.sub(createVector(lx, ly, 0), pos);
+  if (toLight.mag() > 20) {
+    targetDir.lerp(toLight.normalize(), 0.008).normalize();
+  }
+
   // ── Lookahead wall avoidance ─────────────────────────────────────────────
   // Tighter safeR to keep tall body inside circle
   let safeR   = min(width, height) * 0.12;

@@ -175,6 +175,19 @@ class Jellyfish {
     let wSteer = p5.Vector.add(ahead, wOff).normalize();
     this.targetDir.lerp(wSteer, startled ? 0.04 : 0.012).normalize();
 
+    // ── Flow field: Perlin-noise ocean current ─────────────────────────────
+    let fx = noise(this.pos.x * 0.004, this.pos.z * 0.004, frameCount * 0.002) * 2 - 1;
+    let fz = noise(this.pos.x * 0.004 + 100, this.pos.z * 0.004 + 100, frameCount * 0.002) * 2 - 1;
+    this.targetDir.lerp(createVector(fx, 0, fz).normalize(), 0.018).normalize();
+
+    // ── Phototaxis: drift toward cursor / touch (ocelli response) ─────────
+    let lx = (touches.length > 0 ? touches[0].x : mouseX) - width / 2;
+    let ly = (touches.length > 0 ? touches[0].y : mouseY) - height / 2;
+    let toLight = p5.Vector.sub(createVector(lx, ly, 0), this.pos);
+    if (toLight.mag() > 20) {
+      this.targetDir.lerp(toLight.normalize(), 0.008).normalize();
+    }
+
     // ── Lookahead wall avoidance ────────────────────────────────────────────
     let safeR    = min(width, height) * 0.26;
     let future   = p5.Vector.add(this.pos, this.vel.copy().normalize().mult(startled ? 55 : 35));

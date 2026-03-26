@@ -46,7 +46,8 @@ class Jellyfish {
     this.cycle = random(TWO_PI);
     this.baseR = 48;
     this.startleFrames = 0;
-    this.colorBlend = 0; // 1 = full pink, 0 = light blue; fades slowly after startle
+    this.colorBlend = 0;
+    this.wanderTheta = random(TWO_PI);
 
     this.nodes = [];
     this.edges = [];
@@ -146,30 +147,47 @@ class Jellyfish {
       cos(frameCount * 0.005)
     ];
 
-    let out = this.nn.predict(inputs);
-    // Dampen NN steering in idle so drift is gentle
-    let steerStrength = startled ? 0.02 : 0.006;
-    let steer = createVector(out[0], out[1], out[2]).mult(steerStrength);
-    this.targetDir.add(steer).normalize();
+    // NN runs for signal-dot visuals only
+    this.nn.predict(inputs);
 
-    // Soft steering back toward centre when approaching circle edge
-    let d = this.pos.mag();
-    let bounds    = min(width, height) * 0.22;
-    let maxBounds = min(width, height) * 0.28;
+    // ── Wander (3D, perpendicular circle) ─────────────────────────────────
+    this.wanderTheta += random(-(startled ? 0.45 : 0.15), startled ? 0.45 : 0.15);
+    let wD = 60, wR = startled ? 26 : 10;
+    let fwd  = this.targetDir.copy().normalize();
+    let wUp  = abs(fwd.y) > 0.99 ? createVector(1,0,0) : createVector(0,1,0);
+    let wRt  = p5.Vector.cross(fwd, wUp).normalize();
+    let wCUp = p5.Vector.cross(wRt, fwd).normalize();
+    let wSteer = p5.Vector.add(
+      fwd.copy().mult(wD),
+      p5.Vector.add(p5.Vector.mult(wRt, wR * cos(this.wanderTheta)),
+                    p5.Vector.mult(wCUp, wR * sin(this.wanderTheta)))
+    ).normalize();
+    this.targetDir.lerp(wSteer, startled ? 0.04 : 0.012).normalize();
 
-    if (d > bounds) {
-      let toCenter = this.pos.copy().mult(-1).normalize();
-      let factor = map(d, bounds, maxBounds, 0.0, 0.4, true);
-      this.targetDir.lerp(toCenter, factor).normalize();
+    // ── Flow field: Perlin-noise ocean current ─────────────────────────────
+    let fx = noise(this.pos.x * 0.004, this.pos.z * 0.004, frameCount * 0.002) * 2 - 1;
+    let fz = noise(this.pos.x * 0.004 + 100, this.pos.z * 0.004 + 100, frameCount * 0.002) * 2 - 1;
+    this.targetDir.lerp(createVector(fx, 0, fz).normalize(), 0.018).normalize();
+
+    // ── Phototaxis: drift toward cursor / touch (ocelli response) ─────────
+    let lx = (touches.length > 0 ? touches[0].x : mouseX) - width / 2;
+    let ly = (touches.length > 0 ? touches[0].y : mouseY) - height / 2;
+    let toLight = p5.Vector.sub(createVector(lx, ly, 0), this.pos);
+    if (toLight.mag() > 20) {
+      this.targetDir.lerp(toLight.normalize(), 0.008).normalize();
     }
 
-    let downLimit = map(d, bounds, maxBounds, 0.1, 1.0, true);
-    this.targetDir.y = min(this.targetDir.y, downLimit);
-    this.targetDir.normalize();
+    // ── Lookahead wall avoidance ────────────────────────────────────────────
+    let safeR  = min(width, height) * 0.26;
+    let future = p5.Vector.add(this.pos, this.vel.copy().normalize().mult(startled ? 55 : 35));
+    if (future.mag() > safeR) {
+      let radial  = future.copy().normalize();
+      let tangent = createVector(-radial.z, 0, radial.x);
+      if (tangent.dot(this.targetDir) < 0) tangent.mult(-1);
+      this.targetDir.lerp(tangent, map(future.mag(), safeR * 0.85, safeR, 0, 1, true) * 0.7).normalize();
+    }
 
-    this.vel.lerp(this.targetDir, 0.02).normalize();
-    this.vel.y = min(this.vel.y, downLimit);
-    this.vel.normalize().mult(this.speed);
+    this.vel.lerp(this.targetDir, 0.02).normalize().mult(this.speed);
 
     this.pos.add(this.vel);
 
