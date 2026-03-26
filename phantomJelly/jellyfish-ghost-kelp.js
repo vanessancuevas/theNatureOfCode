@@ -436,151 +436,14 @@ class Jellyfish {
   }
 }
 
-// ─── Kelp (WEBGL-adapted from 2D fractal plant) ───────────────────────────────
-class Kelp {
-  constructor(x, y, z) {
-    this.x = x;
-    this.y = y;       // world y — positive = below centre in WEBGL
-    this.z = z;       // 3D depth offset
-    // d: 0 = front (thick, bright), 1 = back (thin, dark)
-    this.d = map(abs(z), 0, 150, 0, 1);
-    this.noiseSeed = random(1000);
-    this.segments  = floor(map(this.d, 0, 1, 22, 10));
-
-    let S   = min(width, height);
-    let R   = S * 0.5;
-    // Camera z-distance (same formula as draw())
-    let cz  = (S / 2.0) / Math.tan(Math.PI / 6);   // tan(30°)
-    // Objects at z>0 appear larger in screen-space by this factor.
-    // Shrink the allowed world-radius accordingly so nothing bleeds outside the CSS circle.
-    let perspScale = cz / (cz - z);
-    // Extra safety margin for sway and frond curvature
-    let R_eff = (R / perspScale) * 0.82;
-
-    // How far the stalk can grow upward before hitting the circle at this x
-    // (using the perspective-corrected radius)
-    let chordH = sqrt(max(0, R_eff * R_eff - x * x));
-    let availH = y + chordH;
-
-    // Fit baseLen so the stalk fills the bottom ~45% of available height —
-    // keeps kelp in the lower portion of the circle, away from the jelly
-    let geoSum  = (1 - Math.pow(0.95, this.segments)) / 0.05;
-    this.baseLen = constrain((availH * 0.45) / geoSum, 5, 28);
-
-    // Max frond reach before hitting the circle wall sideways
-    this.maxFrondLen = max(10, (R_eff - abs(x)) * 0.70);
-
-    // HSB greens matching the original's vibe
-    this.baseH = random(125, 145);
-    this.tipH  = random(90, 112);
-    this.baseS = map(this.d, 0, 1, 88, 55);
-    this.tipS  = map(this.d, 0, 1, 72, 45);
-    this.baseB = map(this.d, 0, 1, 50, 22);
-    this.tipB  = map(this.d, 0, 1, 72, 38);
-  }
-
-  show() {
-    push();
-    translate(this.x, this.y, this.z);
-    noFill();
-    this.branch(this.baseLen, this.segments, this.noiseSeed);
-    pop();
-  }
-
-  branch(len, depth, nSeed) {
-    // Thick base (up to 14px front), tapers to thin tip — matches original
-    let maxThick = map(this.d, 0, 1, 14, 4);
-    let sw = map(depth, 0, this.segments, 0.5, maxThick);
-    strokeWeight(sw);
-
-    let t = depth / this.segments;
-    let h = lerp(this.tipH, this.baseH, t);
-    let s = lerp(this.tipS, this.baseS, t);
-    let b = lerp(this.tipB, this.baseB, t);
-    let a = map(this.d, 0, 1, 230, 110);
-    stroke(h, s, b, a);
-
-    // Small sway — large angles accumulate over 22 segments and push the tip
-    // sideways past the circle wall
-    let noiseAngle = map(noise(nSeed, frameCount * 0.003), 0, 1, -0.05, 0.05);
-    let waveAngle  = sin(frameCount * 0.015 + this.x * 0.01 + depth * 0.1) * 0.03;
-    rotate(noiseAngle + waveAngle);
-
-    line(0, 0, 0, 0, -len, 0);
-    translate(0, -len, 0);
-
-    if (depth > 0) {
-      push();
-      this.branch(len * 0.95, depth - 1, nSeed + 0.1);
-      pop();
-
-      // Fronds on every segment (matches original — no modulo filter)
-      if (depth < this.segments - 1) {
-        push();
-        let leafAngle = map(noise(nSeed + 50, frameCount * 0.005), 0, 1, PI / 8, PI / 2.5);
-        let side = (depth % 2 === 0) ? 1 : -1;
-        rotate(leafAngle * side);
-
-        strokeWeight(map(this.d, 0, 1, 3, 1));
-        let lh = lerp(this.tipH, 105, 0.4);
-        stroke(lh, lerp(s, 65, 0.4), lerp(b, 75, 0.4), a);
-        noFill();
-
-        // Cap frond length so it can't punch through the circle wall
-        let leafLen = min(len * map(this.d, 0, 1, 4.5, 2), this.maxFrondLen);
-        // cp1y/endY use `side` so frond alternates up/down, matching 2D original
-        let cp1x = leafLen * 0.4;
-        let cp1y = side * leafLen * 0.3;
-        let cp2x = leafLen * 0.7;
-        let cp2y = side * leafLen * 0.1;
-        let endX = leafLen;
-        let endY = side * leafLen * 0.4;
-        bezier(
-          0,    0,    0,
-          cp1x, cp1y, 0,
-          cp2x, cp2y, 0,
-          endX, endY, 0
-        );
-        pop();
-      }
-    }
-  }
-}
-
 // ─── Scene setup ──────────────────────────────────────────────────────────────
 let jelly;
-let kelps = [];
 
 function setup() {
   let S = min(windowWidth, windowHeight);
   createCanvas(S, S, WEBGL);
   colorMode(HSB, 360, 100, 100, 255);
   jelly = new Jellyfish();
-  spawnKelp();
-}
-
-function spawnKelp() {
-  kelps = [];
-  let S   = min(width, height);
-  let R   = S * 0.5;
-  let cz  = (S / 2.0) / Math.tan(Math.PI / 6);
-  let num = floor(S / 35);
-
-  for (let i = 0; i < num; i++) {
-    let z = random(-150, 150);
-    // Use the same perspective-corrected radius as the constructor
-    let perspScale = cz / (cz - z);
-    let R_eff = (R / perspScale) * 0.82;
-
-    // Root x stays well inside the effective radius so fronds have room
-    let x = random(-R_eff * 0.85, R_eff * 0.85);
-    // Root y placed on the bottom arc of the effective circle
-    let chordBot = sqrt(max(0, R_eff * R_eff - x * x));
-    let y = random(chordBot * 0.78, chordBot * 0.96);
-    kelps.push(new Kelp(x, y, z));
-  }
-  // Sort back-to-front so foreground plants overdraw background
-  kelps.sort((a, b) => a.z - b.z);
 }
 
 function draw() {
@@ -588,19 +451,15 @@ function draw() {
   blendMode(ADD);
   camera(0, -80, (height / 2.0) / tan((PI * 30.0) / 180.0), 0, 0, 0, 0, 1, 0);
 
-  // Kelp first — jelly swims in front
-  for (let k of kelps) k.show();
-
   jelly.update();
   jelly.render();
 }
 
 function mousePressed() {
-  jelly.startleFrames = 180; // ~3s of rapid swimming
+  jelly.startleFrames = 180;
 }
 
 function windowResized() {
   let S = min(windowWidth, windowHeight);
   resizeCanvas(S, S);
-  spawnKelp();
 }
