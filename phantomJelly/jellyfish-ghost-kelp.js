@@ -146,19 +146,27 @@ class Jellyfish {
     ];
     this.nn.predict(inputs);
 
-    // ── Wander steering (Nature of Code) ──────────────────────────────────
+    // ── Wander steering (proper 3D — Nature of Code) ──────────────────────
+    // The offset circle is perpendicular to the current travel direction,
+    // so the jelly naturally wanders diagonally as it turns.
     let wanderChange = startled ? 0.45 : 0.15;
     this.wanderTheta += random(-wanderChange, wanderChange);
 
     let wD = 60;
     let wR = startled ? 26 : 10;
-    let ahead = this.targetDir.copy().mult(wD);
-    // Y component uses a slower independent angle so vertical drift is gentler
-    // than horizontal — jellyfish wander mostly horizontal, occasionally dip/rise
-    let wOff = createVector(
-      wR * cos(this.wanderTheta),
-      wR * 0.35 * sin(this.wanderTheta * 0.6),
-      wR * sin(this.wanderTheta)
+
+    // Build two axes perpendicular to targetDir (the circle's local plane)
+    let forward = this.targetDir.copy().normalize();
+    let worldUp = abs(forward.y) > 0.99
+      ? createVector(1, 0, 0)   // fallback when swimming straight up/down
+      : createVector(0, 1, 0);
+    let right    = p5.Vector.cross(forward, worldUp).normalize();
+    let circleUp = p5.Vector.cross(right, forward).normalize();
+
+    let ahead  = forward.copy().mult(wD);
+    let wOff   = p5.Vector.add(
+      p5.Vector.mult(right,    wR * cos(this.wanderTheta)),
+      p5.Vector.mult(circleUp, wR * sin(this.wanderTheta))
     );
     let wSteer = p5.Vector.add(ahead, wOff).normalize();
     let sf = startled ? 0.04 : 0.012;
