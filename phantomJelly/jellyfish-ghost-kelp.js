@@ -440,13 +440,19 @@ class Kelp {
   constructor(x, y, z) {
     this.x = x;
     this.y = y;       // world y — positive = below centre in WEBGL
-    this.z = z;       // depth offset
-    this.noiseSeed  = random(1000);
-    this.segments   = floor(map(abs(z), 0, 120, 18, 8));
-    this.baseLen    = map(abs(z), 0, 120, 32, 14);
-    // Muted teal-green so it doesn't compete with the jelly's blues
-    this.baseHue    = random(140, 160);
-    this.tipHue     = random(100, 130);
+    this.z = z;       // 3D depth offset
+    // d: 0 = front (thick, bright), 1 = back (thin, dark)
+    this.d = map(abs(z), 0, 150, 0, 1);
+    this.noiseSeed = random(1000);
+    this.segments  = floor(map(this.d, 0, 1, 22, 10));
+    this.baseLen   = map(this.d, 0, 1, 40, 15);
+    // HSB greens matching the original's vibe
+    this.baseH = random(125, 145);
+    this.tipH  = random(90, 112);
+    this.baseS = map(this.d, 0, 1, 88, 55);
+    this.tipS  = map(this.d, 0, 1, 72, 45);
+    this.baseB = map(this.d, 0, 1, 50, 22);
+    this.tipB  = map(this.d, 0, 1, 72, 38);
   }
 
   show() {
@@ -458,21 +464,23 @@ class Kelp {
   }
 
   branch(len, depth, nSeed) {
-    let sw = map(depth, 0, this.segments, 0.4, 3.5);
+    // Thick base (up to 14px front), tapers to thin tip — matches original
+    let maxThick = map(this.d, 0, 1, 14, 4);
+    let sw = map(depth, 0, this.segments, 0.5, maxThick);
     strokeWeight(sw);
 
-    let t  = depth / this.segments;
-    let h  = lerp(this.tipHue, this.baseHue, t);
-    let s  = 75;
-    let b  = lerp(60, 35, t);
-    let a  = lerp(180, 80, t);
+    let t = depth / this.segments;
+    let h = lerp(this.tipH, this.baseH, t);
+    let s = lerp(this.tipS, this.baseS, t);
+    let b = lerp(this.tipB, this.baseB, t);
+    let a = map(this.d, 0, 1, 230, 110);
     stroke(h, s, b, a);
 
-    let noiseAngle = map(noise(nSeed, frameCount * 0.003), 0, 1, -0.12, 0.12);
-    let waveAngle  = sin(frameCount * 0.015 + this.x * 0.01 + depth * 0.1) * 0.07;
-    rotate(noiseAngle + waveAngle);   // rotates in XY plane (sway)
+    let noiseAngle = map(noise(nSeed, frameCount * 0.003), 0, 1, -0.15, 0.15);
+    let waveAngle  = sin(frameCount * 0.015 + this.x * 0.01 + depth * 0.1) * 0.08;
+    rotate(noiseAngle + waveAngle);
 
-    line(0, 0, 0, 0, -len, 0);       // grow upward (negative y)
+    line(0, 0, 0, 0, -len, 0);
     translate(0, -len, 0);
 
     if (depth > 0) {
@@ -480,23 +488,32 @@ class Kelp {
       this.branch(len * 0.95, depth - 1, nSeed + 0.1);
       pop();
 
-      // Fronds every other segment
-      if (depth < this.segments - 1 && depth % 2 === 0) {
+      // Fronds on every segment (matches original — no modulo filter)
+      if (depth < this.segments - 1) {
         push();
         let leafAngle = map(noise(nSeed + 50, frameCount * 0.005), 0, 1, PI / 8, PI / 2.5);
-        let side = (depth % 4 < 2) ? 1 : -1;
+        let side = (depth % 2 === 0) ? 1 : -1;
         rotate(leafAngle * side);
 
-        strokeWeight(map(abs(this.z), 0, 120, 2, 0.8));
-        stroke(lerp(this.tipHue, 120, 0.4), 60, 70, 130);
+        strokeWeight(map(this.d, 0, 1, 3, 1));
+        let lh = lerp(this.tipH, 105, 0.4);
+        stroke(lh, lerp(s, 65, 0.4), lerp(b, 75, 0.4), a);
+        noFill();
 
-        let lf = len * 2.5;
-        // WEBGL bezier needs xyz per control point (12 args)
+        let leafLen = len * map(this.d, 0, 1, 4.5, 2);
+        // Bezier in WEBGL needs xyz per point (12 args)
+        // cp1y/endY use `side` so frond alternates up/down, matching 2D original
+        let cp1x = leafLen * 0.4;
+        let cp1y = side * leafLen * 0.3;
+        let cp2x = leafLen * 0.7;
+        let cp2y = side * leafLen * 0.1;
+        let endX = leafLen;
+        let endY = side * leafLen * 0.4;
         bezier(
-          0,          0,         0,
-          lf * 0.4,   lf * 0.2,  0,
-          lf * 0.7,   lf * 0.05, 0,
-          lf,         lf * 0.35, 0
+          0,    0,    0,
+          cp1x, cp1y, 0,
+          cp2x, cp2y, 0,
+          endX, endY, 0
         );
         pop();
       }
@@ -513,16 +530,23 @@ function setup() {
   createCanvas(S, S, WEBGL);
   colorMode(HSB, 360, 100, 100, 255);
   jelly = new Jellyfish();
+  spawnKelp();
+}
 
-  // Scatter kelp around the lower portion of the circle
-  let positions = [
-    [-160,  200,   20], [-90,  220,  -30], [20,  230,   50],
-    [ 130,  210,  -50], [200,  195,   10], [-210, 185, -20],
-    [  60,  240,   80], [-130, 215,   60],
-  ];
-  for (let [x, y, z] of positions) {
+function spawnKelp() {
+  kelps = [];
+  let S = min(width, height);
+  let half = S * 0.44;
+  // ~20 plants like original's floor(width/35)
+  let numKelp = floor(S / 35);
+  for (let i = 0; i < numKelp; i++) {
+    let x = random(-half, half);
+    let y = random(S * 0.32, S * 0.46);  // near bottom edge of circle
+    let z = random(-150, 150);
     kelps.push(new Kelp(x, y, z));
   }
+  // Sort back-to-front so foreground plants overdraw background ones
+  kelps.sort((a, b) => a.z - b.z);
 }
 
 function draw() {
@@ -544,4 +568,5 @@ function mousePressed() {
 function windowResized() {
   let S = min(windowWidth, windowHeight);
   resizeCanvas(S, S);
+  spawnKelp();
 }
